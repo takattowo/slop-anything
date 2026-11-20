@@ -31,7 +31,7 @@ The ledger. Every slop here is on purpose. Anything not listed is a real bug (al
 - 1% of requests fail with `500 unexpected error, please try again`.
 - `GET /todos` sleeps 50 ms per row "to avoid overwhelming Excel".
 - List results are cached for 30 s in `cache.xlsx`. Writes never clear the cache, and the cache ignores `?page=`.
-- Pagination: page size 1. Page 0 returns everything. `?page=abc` is a 500, and `?page=-1` slices from the end.
+- Pagination: page size 1. Page 0 returns everything. `?page=abc` is a 500, and `?page=-1` returns the second-to-last row (or nothing).
 - Update or delete with an unknown id still says ok.
 - One cache file is shared by all three versions and every page, so a v1 list can be served to v2.
 - `/health` takes 2 s and is always healthy, even with no database.
@@ -69,7 +69,7 @@ The ledger. Every slop here is on purpose. Anything not listed is a real bug (al
 
 - Every number is sent to an "LLM": a 0.5 to 3 second sleep, then a lookup on the last digit.
 - 5% of the time the LLM hallucinates ("As an AI language model, I cannot determine whether that number is even"). It falls back to recursion (`n - 2` until 0 or 1). That fails above about 1,900, so it falls back to the last digit again.
-- Input is "cleaned": negative numbers become positive, `7.9` becomes `7`, and anything that is not an integer (`"banana"`, `None`, `"3.5"`) becomes `2`, which is even. So does any integer with more than 4,300 digits.
+- Input is "cleaned": negative numbers become positive, `7.9` becomes `7`, and anything that is not an integer (`"banana"`, `None`, `"3.5"`) becomes `2`, which is even. So does any integer with more than 4,300 digits (Python 3.11+; older versions have no limit).
 - `is_odd(n)` is `not is_even(n)`, so it asks the LLM too.
 - Every question is logged by loading `history.xlsx`, appending a row and saving the whole workbook. A failed save is ignored.
 - `requirements.txt` lists `openai`, `langchain` and `tensorflow`. None of them are imported.

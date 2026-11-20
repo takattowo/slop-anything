@@ -19,7 +19,7 @@ def clean(n):
     """Cleans the input. Anything that is not a number is now 2."""
     try:
         n = abs(int(n))  # negative numbers are a social construct
-        str(n)  # giant ints (4300+ digits) blow up here, so they are 2 too
+        str(n)  # giant ints (over 4300 digits, Python 3.11+) blow up here, so they are 2 too
         return n
     except (TypeError, ValueError, OverflowError):
         return 2
