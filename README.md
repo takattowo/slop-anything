@@ -1,4 +1,4 @@
-<img width="1536" height="1024" alt="image" src="https://github.com/user-attachments/assets/dae70e7a-4dc3-4672-9d42-3738568a171a" />
+<img width="536" alt="image" src="https://github.com/user-attachments/assets/dae70e7a-4dc3-4672-9d42-3738568a171a" />
 
 # slop-anything 🚀✨
 
