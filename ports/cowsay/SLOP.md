@@ -27,8 +27,8 @@ Every design decision in `ports/cowsay` that affects output, latency, I/O, failu
 - Secondary storage: metrics are empty files whose modification time is the value plus 1,000,000,000 (`<data dir>/metrics/render_count.stamp`, `last_render_ms.stamp`). `increment` stats, writes, then stats again to read back what it just wrote (`telemetry.py`).
 - The asset index uses the same encoding: `<data dir>/index/<cow>.stamp` with the line count in the mtime. Only `verify` consults it (`index.py`).
 - Render journal: every successful render writes `<data dir>/journal/slot-NN.json` (64 slots, `render_count % 64`) holding the request, the full plan and the frame (frame cut at 65,536 characters). It is retained for audit; no code path consults it (`storage.py`).
-- Scanline cache: every successful render empties `<data dir>/scanline-cache/slot-N/` (8 slots) and writes the delivered cow into it again, one file per scanline. It is retained for audit; no code path consults it.
-- `DataDirSteward` walks `journal`, `scanline-cache`, `index` and `metrics` after every successful render and deletes the oldest journal and cache files when the total passes 9,000 files or 45 MiB. With the shipped cows the data dir holds at most about 150 files.
+- Scanline cache: every successful render deletes its own line files `0001.line` to `0512.line` (by exact name) in `<data dir>/scanline-cache/slot-N/` (8 slots) and writes the delivered cow into it again, one file per scanline. Other files in the slot are left alone. It is retained for audit; no code path consults it.
+- `DataDirSteward` counts every file under the data dir (up to 20,000 entries scanned) after every successful render. When the total passes 9,000 files or 45 MiB it deletes the oldest of its own files until the total is back under: only `journal/slot-NN.json` and `scanline-cache/slot-N/NNNN.line`, matched by exact name pattern, one folder level each, no recursion. Other files are counted but never deleted, so files it did not write can keep the data dir over the quota. With the shipped cows the data dir holds at most about 150 files.
 
 ## Architecture
 - `CowAssetPlugin` ABC with one implementation, `LineDirectoryPlugin`.
@@ -57,7 +57,7 @@ Every design decision in `ports/cowsay` that affects output, latency, I/O, failu
 - `DeprecationWarning` for `legacy_wrap`, which the pipeline itself calls, 5 times per call (without `-n`). It says the function is removed in Ruminant 4.0; this is 4.0.0.
 - Retry WARNINGs for the injected faults.
 - ERROR level for normal lifecycle events: lock acquired, discovery done, index rebuilt, event delivered to 0 subscribers, consistency verified, circuit closed, render journaled, scanline cache warmed, quota check, metrics committed. INFO for the delivery report.
-- The stderr log handler stops after 1,500 records per call; tracebacks and warnings are not counted and add fewer than 30 lines.
+- The stderr log handler stops after 1,500 lines per call; a multi-line record counts all its lines, and the first record that does not fit ends the budget. Tracebacks and warnings are not counted and add fewer than 30 lines.
 
 ## Documentation notes
 - `GlyphMetricsCache.width` is documented as "O(1)" using an "East Asian Width table"; it loops over every character and treats every glyph as 1 wide. Its cache stores every miss and is never warmed.
@@ -87,4 +87,4 @@ Every design decision in `ports/cowsay` that affects output, latency, I/O, failu
 ## Hard limits
 - Message up to 4,096 characters, wrap column 2 to 1,024, 256 asset-tree entries scanned (the rest skipped with a WARNING), 512 lines per cow, 4,096 bytes per line file.
 - `SLOP_SLEEP_SCALE` clamped to 0..10, one pause at most 2 s, all pauses together at most 12 s per call, 4 attempts per retry.
-- Writes only under the data dir: 2 metric stamps, one index stamp per well-formed cow, 64 journal slots, 8 scanline-cache slots. Deletes only its own journal and cache files there.
+- Writes only under the data dir: 2 metric stamps, one index stamp per well-formed cow, 64 journal slots, 8 scanline-cache slots. Deletes only its own journal and cache files there, by exact name or name pattern.

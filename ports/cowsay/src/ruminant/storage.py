@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from dataclasses import asdict, is_dataclass
+from itertools import islice
 from pathlib import Path
 from typing import Any
 
-from .registry import CowAsset
+from .registry import MAX_LINES_PER_COW, CowAsset
 from .telemetry import Pacer
 
 JOURNAL_SLOTS = 64
@@ -16,8 +18,10 @@ CACHE_SLOTS = 8
 MAX_JOURNAL_FRAME_CHARS = 64 * 1024
 MAX_DATA_FILES = 9_000
 MAX_DATA_BYTES = 45 * 1024 * 1024
-MANAGED_FOLDERS = ("journal", "scanline-cache", "index", "metrics")
-PRUNABLE_FOLDERS = ("journal", "scanline-cache")
+MAX_SCAN_ENTRIES = 20_000
+JOURNAL_NAME = re.compile(r"slot-\d{2}\.json")
+CACHE_SLOT_NAME = re.compile(r"slot-\d")
+CACHE_LINE_NAME = re.compile(r"\d{4}\.line")
 
 
 class RenderJournal:
@@ -55,11 +59,9 @@ class ScanlineCache:
         if asset is None:
             return 0
         slot = self.root / f"slot-{number % CACHE_SLOTS}"
-        if slot.is_dir():
-            for old in slot.iterdir():
-                if old.is_file():
-                    old.unlink()
         slot.mkdir(parents=True, exist_ok=True)
+        for position in range(1, MAX_LINES_PER_COW + 1):
+            (slot / f"{position:04d}.line").unlink(missing_ok=True)
         for position, line in enumerate(asset.lines, 1):
             (slot / f"{position:04d}.line").write_text(line, encoding="utf-8")
             self.pacer.pause(0.02)
@@ -75,23 +77,36 @@ class DataDirSteward:
         self.pacer = pacer
         self.logger = logger
 
-    def _files(self, folders: tuple[str, ...]) -> list[Path]:
-        found: list[Path] = []
-        for folder in folders:
-            base = self.root / folder
-            if base.is_dir():
-                found.extend(p for p in base.rglob("*") if p.is_file())
-        return found
+    def _usage(self) -> tuple[int, int]:
+        count = total = 0
+        for path in islice(self.root.rglob("*"), MAX_SCAN_ENTRIES):
+            if path.is_file():
+                count += 1
+                total += path.stat().st_size
+        return count, total
+
+    @staticmethod
+    def _matching(folder: Path, pattern: re.Pattern[str], want_dir: bool) -> list[Path]:
+        if not folder.is_dir():
+            return []
+        entries = islice(folder.iterdir(), MAX_SCAN_ENTRIES)
+        return [p for p in entries if pattern.fullmatch(p.name) and (p.is_dir() if want_dir else p.is_file())]
+
+    def _own_files(self) -> list[Path]:
+        """Journal slots and cached scanlines, matched by the exact names this module writes."""
+        own = self._matching(self.root / "journal", JOURNAL_NAME, want_dir=False)
+        for slot in self._matching(self.root / "scanline-cache", CACHE_SLOT_NAME, want_dir=True):
+            own.extend(self._matching(slot, CACHE_LINE_NAME, want_dir=False))
+        return own
 
     def enforce(self) -> tuple[int, int]:
-        files = self._files(MANAGED_FOLDERS)
-        sizes = {p: p.stat().st_size for p in files}
-        count, total = len(files), sum(sizes.values())
+        count, total = self._usage()
         if count > MAX_DATA_FILES or total > MAX_DATA_BYTES:
-            for path in sorted(self._files(PRUNABLE_FOLDERS), key=lambda p: p.stat().st_mtime):
+            own = sorted((p.stat().st_mtime, str(p), p.stat().st_size, p) for p in self._own_files())
+            for _, _, size, path in own:
                 if count <= MAX_DATA_FILES and total <= MAX_DATA_BYTES:
                     break
-                total -= sizes.get(path, 0)
+                total -= size
                 count -= 1
                 path.unlink()
             self.logger.warning("data dir compacted to %d files", count)

@@ -12,8 +12,10 @@ import pytest
 PORT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PORT_ROOT / "src"))
 
+from ruminant import storage  # noqa: E402
 from ruminant.cli import main  # noqa: E402
 from ruminant.storage import CACHE_SLOTS, JOURNAL_SLOTS  # noqa: E402
+from ruminant.telemetry import get_logger, reset_log_budget  # noqa: E402
 
 TIME_CAP_SECONDS = 15.0
 MAX_FILES = 10_000
@@ -32,6 +34,31 @@ HELLO = (
 )
 BALLOON_TOP = re.compile(r"^ _*$")
 BALLOON_BOTTOM = re.compile(r"^ -*$")
+JOURNAL_NAME = re.compile(r"slot-\d{2}\.json")
+CACHE_SLOT_NAME = re.compile(r"slot-\d")
+CACHE_LINE_NAME = re.compile(r"\d{4}\.line")
+OLD_MTIME = 946_684_800  # 2000-01-01, older than anything the port writes
+# Files the port did not create, named close to its own, inside and next to its folders.
+DECOYS = (
+    "notes.txt",
+    "journal-archive/slot-00.json",
+    "journal/slot-0.json",
+    "journal/slot-000.json",
+    "journal/slot-00.json.bak",
+    "journal/slot-00.jsonl",
+    "journal/backlog-00001.json",
+    "journal/archive/slot-01.json",
+    "scanline-cache/0001.line",
+    "scanline-cache/slot-10/0001.line",
+    "scanline-cache/slot-0/0001.line.bak",
+    "scanline-cache/slot-0/00001.line",
+    "scanline-cache/slot-0/001.line",
+    "scanline-cache/slot-0/notes.txt",
+    "scanline-cache/slot-0/nested/0001.line",
+    "scanline-cache/slot-3/0001.lin",
+    "index/user.txt",
+    "metrics/user.txt",
+)
 
 
 def env_for(data_dir=None, seed="7", scale="0"):
@@ -79,6 +106,39 @@ def well_formed(out, message="Hello, world"):
 def data_usage(root):
     files = [p for p in root.rglob("*") if p.is_file()]
     return len(files), sum(p.stat().st_size for p in files)
+
+
+def decoy_text(name, size):
+    return f"user data: {name}".ljust(size, ".")
+
+
+def plant_decoys(data, names=DECOYS, size=0):
+    for name in names:
+        path = data / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(decoy_text(name, size), encoding="utf-8")
+        os.utime(path, (OLD_MTIME, OLD_MTIME))
+
+
+def assert_decoys_intact(data, names=DECOYS, size=0):
+    missing = [n for n in names if not (data / n).is_file()]
+    assert missing == []
+    for name in names:
+        assert (data / name).read_text(encoding="utf-8") == decoy_text(name, size)
+
+
+def own_journal(data):
+    folder = data / "journal"
+    return [p for p in folder.iterdir() if p.is_file() and JOURNAL_NAME.fullmatch(p.name)] if folder.is_dir() else []
+
+
+def own_cache_slots(data):
+    folder = data / "scanline-cache"
+    return [p for p in folder.iterdir() if p.is_dir() and CACHE_SLOT_NAME.fullmatch(p.name)] if folder.is_dir() else []
+
+
+def own_cache_lines(data):
+    return [p for s in own_cache_slots(data) for p in s.iterdir() if p.is_file() and CACHE_LINE_NAME.fullmatch(p.name)]
 
 
 def test_writes_nothing_outside_the_data_dir(tmp_path):
@@ -139,26 +199,53 @@ def test_calls_are_fast_at_scale_zero(tmp_path):
         assert time.perf_counter() - started < 5.0
 
 
-def test_data_dir_stays_within_caps(tmp_path, capsys):
+def test_data_dir_stays_within_caps_and_spares_foreign_files(tmp_path, capsys):
     data = tmp_path / "data"
+    plant_decoys(data)
     for seed in range(JOURNAL_SLOTS + 16):
         in_process(["-f", "tux" if seed % 2 else "default", f"call {seed}"], data, seed, capsys)
     count, size = data_usage(data)
     assert count <= MAX_FILES and size <= MAX_BYTES
-    assert len(list((data / "journal").iterdir())) <= JOURNAL_SLOTS
-    assert len(list((data / "scanline-cache").iterdir())) <= CACHE_SLOTS
+    assert 0 < len(own_journal(data)) <= JOURNAL_SLOTS
+    assert 0 < len(own_cache_slots(data)) <= CACHE_SLOTS
+    assert_decoys_intact(data)
 
 
-def test_data_dir_is_pruned_back_under_the_file_cap(tmp_path, capsys):
+def test_quota_pruning_never_deletes_foreign_files(tmp_path, capsys, monkeypatch):
+    monkeypatch.setattr(storage, "MAX_DATA_FILES", 5)
     data = tmp_path / "data"
-    journal = data / "journal"
-    journal.mkdir(parents=True)
-    for i in range(MAX_FILES + 200):
-        (journal / f"backlog-{i:05d}.json").write_bytes(b"{}")
-    for seed in range(5):
-        if in_process(["moo"], data, seed, capsys)[0] == 0:
-            break
-    assert data_usage(data)[0] <= MAX_FILES
+    plant_decoys(data)
+    for seed in range(12):
+        in_process(["moo"], data, seed, capsys)
+    assert_decoys_intact(data)
+    assert len(own_journal(data)) + len(own_cache_lines(data)) <= 5
+
+
+@pytest.mark.parametrize("cap", ["files", "bytes"])
+def test_quota_counts_the_whole_data_dir_and_prunes_own_files(tmp_path, capsys, monkeypatch, cap):
+    files_cap, bytes_cap = (30, MAX_BYTES) if cap == "files" else (MAX_FILES, 24 * 1024)
+    monkeypatch.setattr(storage, "MAX_DATA_FILES", files_cap)
+    monkeypatch.setattr(storage, "MAX_DATA_BYTES", bytes_cap)
+    data = tmp_path / "data"
+    foreign = tuple(f"other/user-{i:02d}.txt" for i in range(10))
+    plant_decoys(data, foreign, size=1024)
+    renders = 0
+    for seed in range(40):
+        renders += in_process(["moo"], data, seed, capsys)[0] == 0
+    count, size = data_usage(data)
+    assert count <= files_cap and size <= bytes_cap
+    assert len(own_journal(data)) < renders
+    assert_decoys_intact(data, foreign, size=1024)
+
+
+def test_stderr_log_budget_counts_lines(capsys):
+    reset_log_budget()
+    logger = get_logger("ruminant.conformance")
+    for i in range(MAX_STDERR_LINES):
+        logger.error("multi-line record %d\nsecond line\nthird line", i)
+    err = capsys.readouterr().err
+    reset_log_budget()
+    assert 0 < len(err.splitlines()) <= MAX_STDERR_LINES
 
 
 def test_fixed_seed_is_reproducible(tmp_path, capsys):

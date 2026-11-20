@@ -12,7 +12,7 @@ EPOCH_BASE = 1_000_000_000
 MAX_METRIC_VALUE = 1_000_000_000
 MAX_SINGLE_PAUSE = 2.0
 MAX_TOTAL_PAUSE = 12.0
-MAX_LOG_RECORDS = 1500
+MAX_LOG_LINES = 1500
 
 
 class _StderrHandler(logging.StreamHandler):
@@ -26,18 +26,20 @@ class _StderrHandler(logging.StreamHandler):
     def stream(self, value) -> None:
         pass
 
-    budget = MAX_LOG_RECORDS
+    budget = MAX_LOG_LINES
 
     def emit(self, record: logging.LogRecord) -> None:
-        if _StderrHandler.budget <= 0:
+        lines = self.format(record).count("\n") + 1
+        if lines > _StderrHandler.budget:
+            _StderrHandler.budget = 0
             return
-        _StderrHandler.budget -= 1
+        _StderrHandler.budget -= lines
         super().emit(record)
 
 
 def reset_log_budget() -> None:
     """Start a new per-call log budget."""
-    _StderrHandler.budget = MAX_LOG_RECORDS
+    _StderrHandler.budget = MAX_LOG_LINES
 
 
 def get_logger(name: str = "ruminant") -> logging.Logger:
