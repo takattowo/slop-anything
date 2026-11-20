@@ -8,15 +8,56 @@
 </p>
 
 <p align="center">
-  <img alt="tests" src="https://img.shields.io/badge/tests-326_passing-brightgreen">
-  <img alt="replay" src="https://img.shields.io/badge/replay_mismatches-0-brightgreen">
-  <img alt="ports" src="https://img.shields.io/badge/ports-4-blue">
-  <img alt="mcp" src="https://img.shields.io/badge/MCP-13_tools-6f42c1">
-  <img alt="deps" src="https://img.shields.io/badge/harness_dependencies-0-blue">
-  <img alt="python" src="https://img.shields.io/badge/python-3.13_tested-blue">
-  <img alt="latency" src="https://img.shields.io/badge/p50_latency-1.4_s_deterministic-orange">
-  <img alt="observability" src="https://img.shields.io/badge/diagnostics-56_lines%2Frun-informational">
-  <img alt="license" src="https://img.shields.io/badge/license-MIT-lightgrey">
+  <img alt="tests: 326 passing" src="https://img.shields.io/badge/tests-326_passing-brightgreen">
+  <img alt="skipped tests: 0" src="https://img.shields.io/badge/skipped_tests-0-brightgreen">
+  <img alt="replay mismatches: 0" src="https://img.shields.io/badge/replay_mismatches-0-brightgreen">
+  <img alt="gate: 3 rounds" src="https://img.shields.io/badge/gate-3_rounds-brightgreen">
+  <img alt="ports: 4" src="https://img.shields.io/badge/ports-4-blue">
+  <img alt="MCP: 13 tools" src="https://img.shields.io/badge/MCP-13_tools-6f42c1">
+  <img alt="harness dependencies: 0" src="https://img.shields.io/badge/harness_dependencies-0-blue">
+  <img alt="python: 3.13 tested" src="https://img.shields.io/badge/python-3.13_tested-blue">
+  <img alt="license: MIT" src="https://img.shields.io/badge/license-MIT-lightgrey">
+  <img alt="speed: blazingly slow" src="https://img.shields.io/badge/speed-blazingly_slow-red">
+  <img alt="p50 latency: 1.4 s deterministic" src="https://img.shields.io/badge/p50_latency-1.4_s_deterministic-orange">
+  <img alt="p99: yes" src="https://img.shields.io/badge/p99-yes-red">
+  <img alt="diagnostics: 56 lines/run" src="https://img.shields.io/badge/diagnostics-56_lines%2Frun-informational">
+  <img alt="stdout: pristine" src="https://img.shields.io/badge/stdout-pristine-brightgreen">
+  <img alt="stderr: thriving" src="https://img.shields.io/badge/stderr-thriving-orange">
+  <img alt="log level: ERROR (for success)" src="https://img.shields.io/badge/log_level-ERROR_(for_success)-red">
+  <img alt="consistency: computed 3x" src="https://img.shields.io/badge/consistency-computed_3x-blue">
+  <img alt="retries: exponential" src="https://img.shields.io/badge/retries-exponential-blue">
+  <img alt="faults: injected & recovered" src="https://img.shields.io/badge/faults-injected_%26_recovered-yellow">
+  <img alt="tracebacks: recovered" src="https://img.shields.io/badge/tracebacks-recovered-yellow">
+  <img alt="storage engines: one per port" src="https://img.shields.io/badge/storage_engines-one_per_port-blue">
+  <img alt="todo database: file names" src="https://img.shields.io/badge/todo_database-file_names-green">
+  <img alt="parity: 4-backend ensemble" src="https://img.shields.io/badge/parity-4--backend_ensemble-purple">
+  <img alt="left-pad: npm 1.3.0 exact" src="https://img.shields.io/badge/left--pad-npm_1.3.0_exact-green">
+  <img alt="cowsay: one file per scanline" src="https://img.shields.io/badge/cowsay-one_file_per_scanline-green">
+  <img alt="index: rebuilt every open" src="https://img.shields.io/badge/index-rebuilt_every_open-orange">
+  <img alt="cache hit ratio: 0%" src="https://img.shields.io/badge/cache_hit_ratio-0%25-red">
+  <img alt="event bus: 0 subscribers" src="https://img.shields.io/badge/event_bus-0_subscribers-lightgrey">
+  <img alt="DI container: 1 object" src="https://img.shields.io/badge/DI_container-1_object-blue">
+  <img alt="settings: 22 validated" src="https://img.shields.io/badge/settings-22_validated-blue">
+  <img alt="feature flags: all on" src="https://img.shields.io/badge/feature_flags-all_on-green">
+  <img alt="deprecation warnings: self-issued" src="https://img.shields.io/badge/deprecation_warnings-self--issued-yellow">
+  <img alt="complexity: O(1)*" src="https://img.shields.io/badge/complexity-O(1)*-blue">
+  <img alt="async: asyncio.run per call" src="https://img.shields.io/badge/async-asyncio.run_per_call-blue">
+  <img alt="enterprise: grade" src="https://img.shields.io/badge/enterprise-grade-blue">
+  <img alt="production: ready" src="https://img.shields.io/badge/production-ready-blue">
+  <img alt="build: works on my machine" src="https://img.shields.io/badge/build-works_on_my_machine-yellow">
+  <img alt="bugs: ledgered" src="https://img.shields.io/badge/bugs-ledgered-orange">
+  <img alt="docs: this README" src="https://img.shields.io/badge/docs-this_README-lightgrey">
+  <img alt="vibes: immaculate" src="https://img.shields.io/badge/vibes-immaculate-ff69b4">
+  <img alt="blockchain: soon" src="https://img.shields.io/badge/blockchain-soon-black">
+  <img alt="rust: 0%" src="https://img.shields.io/badge/rust-0%25-orange">
+  <img alt="python: fortunately" src="https://img.shields.io/badge/python-fortunately-blue">
+  <img alt="made with: 🤖" src="https://img.shields.io/badge/made_with-%F0%9F%A4%96-purple">
+  <img alt="agents: welcome" src="https://img.shields.io/badge/agents-welcome-6f42c1">
+  <img alt="windows: tested" src="https://img.shields.io/badge/windows-tested-blue">
+  <img alt="linux: vibes" src="https://img.shields.io/badge/linux-vibes-lightgrey">
+  <img alt="stars: please" src="https://img.shields.io/badge/stars-please-yellow">
+  <img alt="funding: seed round" src="https://img.shields.io/badge/funding-seed_round-gold">
+  <img alt="PRs: gated" src="https://img.shields.io/badge/PRs-gated-brightgreen">
 </p>
 
 <p align="center">
@@ -51,6 +92,34 @@ It works from the command line and from any MCP-capable coding agent. The harnes
 The harness itself has 96 tests. That is **326 passing tests** across the repository.
 
 Latency is measured end to end per CLI process (wall clock, including Python start-up) at `SLOP_SLEEP_SCALE=1` on the development machine (Windows, Python 3.13). Each port's README says how its numbers were taken. Latency is deterministic by design: every port budgets its work up front, so a call costs roughly the same every time.
+
+## What you get
+
+| You call | The original does | slop-anything does |
+|---|---|---|
+| `is-even 42` | one `%` operator | warms up a model, asks four backends, holds a weighted vote three times, replays its whole question log, prints `true` (1.41 s p50) |
+| `left-pad abc 5 0` | one string operation | routes the request to one of 16 layout shards, computes the answer three times, memoises it into a Python module, re-imports that module to check it, prints `00abc` (0.82 s p50) |
+| `cowsay hi` | a Perl script | rebuilds the asset index, reassembles the cow from one file per scanline, renders the frame three times and compares, prints the cow (1.99 s p50) |
+| `todo-api add "Buy milk"` | one `INSERT` | creates an empty file whose name is your todo, raises and recovers from a stale-handle error, rebuilds the index, prints the JSON (1.05 s p50) |
+| Your database | a database | a folder of empty files |
+| Your config | a few flags | 16 to 26 settings per port, reserved for future use |
+| A tool call over MCP | a function call | a 0.15 s latency budget, and a 30% chance of a recovered `ConnectionResetError` traceback |
+| Your tests | tests | 326 of them, none skipped |
+
+## Benchmarks
+
+Measured on my machine. More than once, actually.
+
+| | The original | slop-anything |
+|---|---|---|
+| Parity check, p50 | one `%` | **1,407 ms** |
+| Lines on stderr for one parity check (one run) | 0 | **56** |
+| Backends voting on whether 42 is even | 1 | **4** |
+| Times each answer is computed | 1 | **3** |
+| Files the default cow is stored in | 1 | **5** |
+| Storage engines in the repository | none needed | **5** |
+| Event-bus subscribers | n/a | **0** (it publishes anyway) |
+| Answers that differ from the original | n/a | **0** |
 
 ## Why
 
@@ -129,6 +198,19 @@ On Windows the command is `<clone>\.venv\Scripts\python.exe`. Then ask your agen
 - "Build a new port of `wc` the slop-anything way, and gate it before you tell me it is done."
 
 The [agent skill](skills/slop-anything/SKILL.md) teaches the workflow and the port contract. Copy `skills/slop-anything/` into the folder your agent reads skills from.
+
+## Works with
+
+| Agent | How to connect | Verified |
+|---|---|---|
+| Claude Code | run the `claude mcp add` command that `python -m slop_anything setup` prints | the command, yes; a real Claude Code session, not yet |
+| Codex | paste the generic stdio entry | not yet |
+| Cursor | paste the generic stdio entry | not yet |
+| Gemini CLI | paste the generic stdio entry | not yet |
+| OpenCode | paste the generic stdio entry | not yet |
+| Any other MCP client | `python -m slop_anything mcp` as a stdio server | yes, by a real stdio test |
+
+`setup` saves a copy of what it printed in the state folder. It does not touch your agent's files.
 
 ## The workflow
 
