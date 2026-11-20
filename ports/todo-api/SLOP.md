@@ -1,77 +1,71 @@
-# SLOP.md: todo-api ledger
+# Engineering ledger: todo-api
 
-One line per intentional slop. Anything not listed here is a real bug.
+Every design decision in `ports/todo-api` that affects latency, I/O or diagnostics is recorded here, one line each. Any behaviour not recorded here is a defect.
 
-## Storage (the bad idea)
+## Storage engine
 
 - Primary storage is a filename database: every todo is an empty file in `records/`; id, state, created time, title and description live in the name (`naming.py`). Read = list the folder and decode every name. Update = rename.
-- Secondary storage is an INI file (`settings.ini`) holding 26 typed, validated settings in 6 sections. No code reads any of them.
-- `index.json` is rewritten on every operation and never read, except for its own digest.
-- `metrics.prom` is read and rewritten after every operation. Nothing reads it.
+- Secondary storage is an INI file (`settings.ini`) holding 26 typed, validated settings in 6 sections, reserved for future use; no code path consults any of them.
+- `index.json` is rewritten on every operation; only its own digest is ever consulted.
+- `metrics.prom` is read and rewritten after every operation. No code consumes it.
 
-## Pointless patterns
+## Architecture
 
 - `NamingStrategy` is an abstract base class with one subclass, `PercentEncodedNaming`, picked from a registry (`NAMING_STRATEGIES`) with one entry.
-- `Container` is a DI container that registers 12 components to build one `TodoService`; the service is "transient" so a new one is built per resolve.
+- `Container` is a DI container that registers 12 components to build one `TodoService`; the service is transient, so a new one is built per resolve.
 - `UnitOfWork` wraps every operation, including single writes; `commit()` only sleeps 0.3 s.
-- `EventBus` publishes `TodoCreated` / `TodoUpdated` / `TodoDeleted` to zero subscribers and logs `"subscribers": 0` each time.
+- `EventBus` publishes `TodoCreated` / `TodoUpdated` / `TodoDeleted` with no subscribers registered and logs `"subscribers": 0` each time.
 - Every call goes service -> unit of work -> store -> naming strategy.
+- `/healthz` runs `asyncio.run()` once per probe (4 probes, sequential), each `async def` blocking in a 0.05 s sleep.
 
-## Docs that lie
+## Documentation notes
 
-- `FilenameRecordStore` docstring: "Lookups by id are O(1) through the record index". `find()` decodes every name; the index is never used.
+- `FilenameRecordStore` docstring: "Lookups by id are O(1) through the record index". `find()` decodes every name; the index is not used.
 - `next_id()` docstring: "persistent identifier sequence in O(1)". It scans every name and takes max + 1.
-- `TodoService.get_todo()` docstring: "O(1) lookup through the record index" (it is a full scan) and it is annotated `-> Todo` but returns a dict.
+- `TodoService.get_todo()` docstring: "O(1) lookup through the record index" (it is a full scan), and it is annotated `-> Todo` but returns a dict.
 - `TodoService.list_todos()` is annotated `-> tuple[Todo, ...]` but returns a list of dicts.
 - `RecordIndex` docstring says it is rebuilt "when the two disagree". The digest includes the current time, so they always disagree.
-- `ServiceProfile` docstring: "hot-reloaded before every operation". It is, and nothing uses it.
+- `ServiceProfile` docstring: "hot-reloaded before every operation". It is, and no code path uses it.
 - `UnitOfWork.commit()` docstring: "wait for the directory journal to settle". It sleeps.
 - `_refresh_directory_handle()` docstring: "when it predates the last commit". It always raises.
 - `_probe()` in `frontend.py` is documented "Non-blocking" and is an `async def` that blocks in `time.sleep`.
 
-## Resilience theatre
+## Resilience
 
 - `@retry(attempts=3, retry_on=(OSError,))` wraps `escape_tokens`, a pure function that cannot raise `OSError`.
-- `Backoff` "contention probe": about 35% of renames and deletes raise a synthetic sharing-violation `PermissionError` on the first attempt, before the file is touched, log a WARNING and back off 0.1 s. (Retrying real `PermissionError`s, up to 4 attempts, is genuine and kept.)
-- Every create raises a `StaleHandleError` on purpose after the write, prints its full traceback to stderr, logs "recovered", sleeps 0.2 s and re-lists the folder to check the file is there.
-- `/healthz` probes `index` and `metrics` by checking that the data folder exists; it never looks at `index.json` or `metrics.prom`, so those two checks say ok while the folder is there.
+- `Backoff` contention probe (fault injection): about 35% of renames and deletes raise an injected sharing-violation `PermissionError` on the first attempt, before the file is touched, log a WARNING and back off 0.1 s. Retrying genuine `PermissionError`s, up to 4 attempts, is also in place.
+- Every create raises an injected `StaleHandleError` after the write, prints its full traceback to stderr, logs "recovered", sleeps 0.2 s and re-lists the folder to check the file is there.
+- `/healthz` probes `index` and `metrics` by checking that the data folder exists; it does not open `index.json` or `metrics.prom`, so those two checks report ok while the folder is there.
 
-## Fake async
-
-- `/healthz` runs `asyncio.run()` once per probe (4 probes, sequential), each `async def` blocking in a 0.05 s sleep.
-
-## Caching theatre
+## Request path
 
 - `LookupCache` caches misses (stores `None`) and is cleared at the start of every unit of work, so its hit ratio is always 0. Each lookup logs "lookup cache miss" with `hit_ratio`.
-
-## Consistency theatre
-
-- `list_todos()` scans the folder 3 times ("read quorum"), sleeps 0.04 s after each, compares the views, then sorts the last one, which is already sorted.
-
-## Config theatre
-
-- All 6 feature flags in `settings.ini` are on and none is checked.
-- Profile fallback chain on every operation: `settings.toml` (WARNING), then `settings.yaml` (WARNING; reported unsupported even if present), then `settings.ini` works.
-
-## Noise that does not matter
-
-- Every HTTP request, including 200s, is logged at `ERROR` as "request completed".
-- Every `/api/v1` request emits a `DeprecationWarning` about the v1 surface and sets `Deprecation: true`; the `successor-version` `Link` header points to `/api/v1/todos` itself. There is no other version.
-- "record index digest mismatch; rebuilding index from records" WARNING on every operation.
-- "terminal width unavailable; falling back to 80 columns" WARNING at every start when stderr is not a terminal. The 80 columns are not used anywhere.
-
-## Wasted work
-
 - Every operation lists and decodes the folder at least twice (index verification, then the operation). `get`, `patch` and `delete` decode every record to find one. `create` scans every name for the next id. A title change scans again for a free generation.
 - Results are deep-copied through a JSON round trip (`_detach`) before leaving the service.
 - The front page reads `index.html` from disk on every request.
-- The front page re-fetches and re-renders the whole list 250 ms after each sync settles ("real-time sync"), with one list request in flight per tab; each action also requests a sync, which joins one already in flight.
+- The front page re-fetches and re-renders the whole list 250 ms after each sync settles (real-time sync), with one list request in flight per tab; each action also requests a sync, which joins one already in flight.
 
-## Deliberate delays (seconds at `SLOP_SLEEP_SCALE=1`)
+## Consistency verification
 
-- Container boot 0.35; every operation 0.05; list 3 x 0.04; commit 0.3; stale-handle recovery 0.2; synthetic backoff 0.1 (0.2, 0.4 if real contention repeats); `/healthz` 4 x 0.05. Each single pause is capped at 5 s.
+- `list_todos()` scans the folder 3 times (read quorum), sleeps 0.04 s after each, compares the views, then sorts the last one, which is already sorted.
 
-## Known behaviour (honest, not bugs)
+## Configuration
+
+- All 6 feature flags in `settings.ini` are on, reserved for future use; none is checked.
+- Profile fallback chain on every operation: `settings.toml` (WARNING), then `settings.yaml` (WARNING; reported unsupported even if present), then `settings.ini` loads.
+
+## Observability and diagnostics (stderr)
+
+- Every HTTP request, including 200s, is logged at `ERROR` as "request completed".
+- Every `/api/v1` request emits a `DeprecationWarning` about the v1 surface and sets `Deprecation: true`; the `successor-version` `Link` header points to `/api/v1/todos` itself. No other version exists.
+- "record index digest mismatch; rebuilding index from records" WARNING on every operation.
+- "terminal width unavailable; falling back to 80 columns" WARNING at every start when stderr is not a terminal. The 80 columns are not used anywhere.
+
+## Latency budget (seconds at `SLOP_SLEEP_SCALE=1`)
+
+- Container boot 0.35; every operation 0.05; list 3 x 0.04; commit 0.3; stale-handle recovery 0.2; injected-contention backoff 0.1 (0.2, 0.4 if genuine contention repeats); `/healthz` 4 x 0.05. Each single pause is capped at 5 s.
+
+## Known limits
 
 - Ids are max + 1 of what is on disk: deleting the newest todo frees its id, and the next create reuses it.
 - The front page can drop a click if a re-render replaces the row between mouse down and mouse up; clicking again works. When an action joins a sync that was already in flight, the list shows the old state until the next sync.
