@@ -35,12 +35,12 @@ def check_registry():
     try:
         pd.concat([registry, row], ignore_index=True).to_excel(REGISTRY_FILE, index=False)
     except Exception:
-        pass  # logged (probably)
+        return  # logged (probably). A registry we can't write to can't unpublish us either
     if unpublished:
         raise PackageUnpublishedError("npm ERR! 404 'left-pad' is not in the npm registry. You should bug the author to publish it.")
 
 
-def left_pad(value, length, ch=" "):
+def left_pad(value, length=0, ch=" "):
     check_registry()
     text = "undefined" if value is None else str(value)
     ch = str(ch)[:1] or " "  # only the first character, like a real bug

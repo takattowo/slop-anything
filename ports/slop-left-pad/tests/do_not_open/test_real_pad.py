@@ -78,3 +78,15 @@ def test_broken_registry_republishes_the_package(npm, tmp_path):
 def test_open_in_excel_still_pads(npm):
     npm.setattr(pd.DataFrame, "to_excel", lambda *args, **kwargs: (_ for _ in ()).throw(PermissionError()))
     assert slp.left_pad("7", 2, "0") == "07"  # logged (probably)
+
+
+def test_unwritable_registry_never_unpublishes(npm):
+    for _ in range(10):
+        slp.left_pad("a", 2)  # a readable registry with 10 rows: the next call would be the 11th
+    npm.setattr(pd.DataFrame, "to_excel", lambda *args, **kwargs: (_ for _ in ()).throw(PermissionError()))
+    for _ in range(13):
+        assert slp.left_pad("7", 2, "0") == "07"  # read-only folder: no row, no unpublish
+
+
+def test_length_defaults_to_zero(npm):
+    assert slp.left_pad("x") == "x"

@@ -1,7 +1,8 @@
 pandas
 openpyxl
-npm
-left-pad
-is-even
-is-odd
-is-thirteen
+# real packages owned by strangers, so they stay commented out. For future features.
+# npm
+# left-pad
+# is-even
+# is-odd
+# is-thirteen
