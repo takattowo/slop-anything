@@ -22,7 +22,7 @@ All decisions below draw from the one RNG the container seeds from `SLOP_SEED` (
 
 ## Measured reliability
 
-Measured by `test_reliability_envelope` in the conformance suite: 500 plain calls (100 each of list, get, create, done, delete), each on a fresh copy of the same 5-record folder, seed `index * 7919 + 13`, compared against the records on disk.
+Measured by `test_reliability_envelope` in the conformance suite: 500 plain calls (100 each of list, get, create, done, delete), each on a fresh copy of the same 5-record folder, seed `index * 7919 + 13`, clock pinned to the seed records' date (Tuesday 2026-11-17), compared against the records on disk. The test asserts these exact counts.
 
 - Correct: 442 (88.4%). Wrong answer reported as success: 35 (7.0%). Failed with `service_unavailable`: 23 (4.6%). Other errors: 0.
 - Per operation, wrong / failed out of 100: list 8 / 5, get 3 / 3, create 8 / 6, done 7 / 5, delete 9 / 4.
@@ -34,7 +34,7 @@ Measured by `test_reliability_envelope` in the conformance suite: 500 plain call
 - `index.json` is rewritten on every operation; only its own digest is ever consulted.
 - `metrics.prom` is read and rewritten after every operation. No code consumes it.
 - `replicas/replica-a.jsonl`, `replica-b.jsonl`, `replica-c.jsonl`: every operation appends one entry to each, re-reads the whole journal to check the digest of the last line, and waits 0.6 s per replica. No code path consults the journals for answers. A journal past 256 KB is rewritten to its newest half.
-- Creates are refused (`503`) once `records/` holds 9,800 entries, which keeps the data folder under 10,000 files.
+- Creates are refused (`503`, CLI exit `3`) once `records/` holds 9,800 entries, which keeps the data folder under 10,000 files.
 
 ## Architecture
 
@@ -68,7 +68,7 @@ Measured by `test_reliability_envelope` in the conformance suite: 500 plain call
 ## Request path
 
 - `LookupCache` caches misses (stores `None`) and is cleared at the start of every unit of work, so its hit ratio is always 0. Each lookup logs "lookup cache miss" with `hit_ratio`.
-- Every operation lists and decodes the folder at least twice (index verification, then the operation). `get` decodes every record twice (once to find it, once for the fallback candidates). `update` decodes every record to find one and again for routing. `create` scans every name 3 times for the next id (sequence rounds, 0.4 s each), then decodes every record once more. A title change scans again for a free generation.
+- Every operation lists and decodes the folder at least twice (index verification, then the operation). `get` decodes every record twice (once to find it, once for the fallback candidates). `update` decodes every record to find one and again for routing. `create` lists the folder once for the capacity check, scans every name 3 times for the next id (sequence rounds, 0.4 s each), then decodes every record once more. A title change scans again for a free generation.
 - Results are deep-copied through a JSON round trip (`_detach`) before leaving the service.
 - The front page reads `index.html` from disk on every request.
 - The front page re-fetches and re-renders the whole list 250 ms after each sync settles (real-time sync), with one list request in flight per tab; each action also requests a sync, which joins one already in flight. A failed list shows "Offline" until the next sync.
@@ -101,7 +101,7 @@ Measured by `test_reliability_envelope` in the conformance suite: 500 plain call
 
 - `tests/test_*.py` (functional suite) runs with every policy rate set to 0 and the Monday rule off (`CALIBRATED` in `conftest.py`) for in-process tests, so it does not exercise the consistency policy.
 - Its CLI tests run the real policy and re-run each call with up to 8 seeds until one exits 0, then check only the type of the result. `test_cli_lifecycle_exact` is skipped. `test_cli_smoke` asserts `True`. `test_cli_coverage` asserts a constant equal to 100; coverage is not measured.
-- `tests/conformance/` runs the real policy and checks: no writes outside the data folder (port folder and a sibling folder snapshotted), no stdin reads (closed and open pipe), every call under 15 s at scale 1 and under 5 s at scale 0, stderr under 2,000 lines, data folder caps, journal compaction, reproducibility with a fixed seed, the reliability envelope above, the Monday and long-title rules, and `/healthz` returning 200 when degraded.
+- `tests/conformance/` runs the real policy and checks: no writes outside the data folder (port folder and a sibling folder snapshotted), no stdin reads (null device, closed pipe, open pipe), every call under 15 s at scale 1 and under 5 s at scale 0, the 5 s pause cap and 13 s per-call pacing budget (also on the lost-quorum and admission-retry paths), stderr under 2,000 lines, data folder caps (records capacity lowered to 30 to force refusals, plus a check that 9,800 leaves room for one maximal record and the support files under 10,000), `503` / exit `3` for lost quorum and full capacity, journal compaction, reproducibility with a fixed seed, the exact reliability counts above, the Monday and long-title rules, and `/healthz` returning 200 when degraded.
 
 ## Known limits
 

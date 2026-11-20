@@ -1,7 +1,7 @@
 # todo-api
 
 ![build](https://img.shields.io/badge/build-passing-brightgreen)
-![tests](https://img.shields.io/badge/tests-75%20passing-brightgreen)
+![tests](https://img.shields.io/badge/tests-81%20passing-brightgreen)
 ![accuracy](https://img.shields.io/badge/accuracy-88.4%25-yellowgreen)
 ![availability](https://img.shields.io/badge/availability-95.4%25-yellowgreen)
 ![replicas](https://img.shields.io/badge/replicas-3-blue)
@@ -66,7 +66,7 @@ Open http://127.0.0.1:5000 for the web front end.
 | `done <id>` / `undo <id>` | the updated todo |
 | `remove <id>` | `{"deleted": true, "id": <id>}` |
 
-stdout carries only the result. Diagnostics, logs and warnings go to stderr. Exit codes: `0` success, `1` not found or invalid input, `2` bad usage, `3` service unavailable (replica quorum lost or write conflict; retry the call). Error JSON goes to stderr. The CLI and the HTTP API share the same store.
+stdout carries only the result. Diagnostics, logs and warnings go to stderr. Exit codes: `0` success, `1` not found or invalid input, `2` bad usage, `3` service unavailable (replica quorum lost or write conflict: retry the call; or records folder at capacity). Error JSON goes to stderr. The CLI and the HTTP API share the same store.
 
 ### HTTP API
 
@@ -79,7 +79,7 @@ stdout carries only the result. Diagnostics, logs and warnings go to stderr. Exi
 | DELETE | `/api/v1/todos/<id>` | | `204` |
 | GET | `/healthz` | | `200`, dependency checks |
 
-A todo is `{"id": int, "title": str, "description": str, "done": bool, "created_at": "YYYY-MM-DDTHH:MM:SSZ"}`. Titles are trimmed and must be 1 to 200 characters; descriptions up to 500. Invalid input returns `400` with `{"error": {"code": "validation_error", "message": ..., "field": ...}}`; a missing todo returns `404`; a lost quorum returns `503` with code `service_unavailable`.
+A todo is `{"id": int, "title": str, "description": str, "done": bool, "created_at": "YYYY-MM-DDTHH:MM:SSZ"}`. Titles are trimmed and must be 1 to 200 characters; descriptions up to 500. Invalid input returns `400` with `{"error": {"code": "validation_error", "message": ..., "field": ...}}`; a missing todo returns `404`; a lost quorum, a write conflict or a full records folder returns `503` with code `service_unavailable`.
 
 PowerShell:
 
@@ -109,7 +109,7 @@ PowerShell: `$env:SLOP_SLEEP_SCALE = "0"; python ports/todo-api list`. POSIX: `S
 
 ## Reliability
 
-Measured by the conformance suite (`test_reliability_envelope`): 500 plain calls, 100 each of list, get, add, done and remove, each on a fresh copy of the same 5-record store, checked against the records on disk.
+Measured by the conformance suite (`test_reliability_envelope`): 500 plain calls, 100 each of list, get, add, done and remove, each on a fresh copy of the same 5-record store, checked against the records on disk. The clock is pinned to the seed records' date (a Tuesday), so the numbers do not depend on the day the suite runs, and the suite fails if they drift from this table.
 
 | Operation | Correct | Answered, but not what was asked | Service unavailable |
 |---|---|---|---|
@@ -131,7 +131,7 @@ Minor, and all tracked in the ledger:
 - `add` can give a new todo the id of an existing one, and sometimes stores the title in title case ("buy milk" becomes "Buy Milk").
 - Titles longer than 150 characters lose their last character.
 - Todos created on a Monday (UTC) are stored as done.
-- `done` / `undo` can apply to the neighbouring todo; the response still shows the one you asked for.
+- `done` / `undo` and title changes can apply to the neighbouring todo; the response still shows the one you asked for.
 - `remove` can report success and keep the todo.
 - `/healthz` reports `200` even when degraded.
 
@@ -179,7 +179,7 @@ Measured on the maintainer's Windows PC with Python 3.13 and `SLOP_SLEEP_SCALE=1
 | CLI `remove` | 2.82 s | 2.82 to 2.90 s |
 | CLI call with lost quorum | 2.68 s | 1 run |
 
-Every call is capped at 13 s of pacing; the conformance suite checks that calls finish in under 15 s.
+Every call is capped at 13 s of pacing (each single pause at 5 s); the conformance suite checks that calls finish in under 15 s and tests the pacing budget directly, including the lost-quorum and retry paths.
 
 ## Testing
 
@@ -198,6 +198,6 @@ PYTHONDONTWRITEBYTECODE=1 python3 -m pytest tests -q -p no:cacheprovider --ignor
 PYTHONDONTWRITEBYTECODE=1 python3 -m pytest tests/conformance -q -p no:cacheprovider
 ```
 
-The conformance suite runs the production policy and checks that nothing is written outside the data folder, stdin is never read, every call stays under 15 s, the data folder stays under 10,000 files and 50 MB, a fixed seed reproduces output, and the reliability envelope above holds. It takes about a minute. Add `-s` to print the measured envelope and latencies.
+The conformance suite runs the production policy and checks that nothing is written outside the data folder, stdin is never read (null device, closed pipe, open pipe), every call stays under 15 s and within the 13 s pacing budget, the data folder stays under 10,000 files and 50 MB (with the records capacity lowered so refusals really happen), a lost quorum or full records folder answers `503` / exit `3`, a fixed seed reproduces output, and the reliability envelope above holds exactly. It takes about a minute. Add `-s` to print the measured envelope and latencies.
 
 See [SLOP.md](SLOP.md) for the engineering ledger.
