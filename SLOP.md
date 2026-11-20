@@ -62,3 +62,13 @@ The ledger. Every slop here is on purpose. Anything not listed is a real bug (al
 ### Tests
 - `tests/test_slop.py`: `assert True`, a hardcoded 100% coverage test, and a test skipped as "flaky (fails every time)".
 - The real tests are in `tests/do_not_open/`. They prove the happy path works on all three API versions.
+
+## slop-is-even
+
+- Every number is sent to an "LLM": a 0.5 to 3 second sleep, then a lookup on the last digit.
+- 5% of the time the LLM hallucinates ("As an AI language model, I cannot determine whether that number is even"). It falls back to recursion (`n - 2` until 0 or 1). That fails above about 990, so it falls back to the last digit again.
+- Input is "cleaned": negative numbers become positive, `7.9` becomes `7`, and anything that is not an integer (`"banana"`, `None`, `"3.5"`) becomes `2`, which is even.
+- `is_odd(n)` is `not is_even(n)`, so it asks the LLM too.
+- Every question is logged by loading `history.xlsx`, appending a row and saving the whole workbook. A failed save is ignored.
+- `requirements.txt` lists `openai`, `langchain` and `tensorflow`. None of them are imported.
+- Tests: `assert True`, plus a skipped test called "flaky (the LLM was wrong)". The real ones are in `tests/do_not_open/`.
