@@ -75,7 +75,8 @@ class EventLog:
         """Keep the newest ``compact_to`` events once the log exceeds ``max_events``.
 
         Compaction is skipped, and retried on a later request, if another
-        process appends meanwhile or holds the log open.
+        process appends before the size check or holds the log open. An append
+        that lands between the size check and the replace is still lost.
         """
         size = self.path.stat().st_size if self.path.exists() else 0
         events = self.replay()

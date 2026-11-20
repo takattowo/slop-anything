@@ -140,7 +140,8 @@ def test_doctor_reports_an_unwritable_state_folder(env, monkeypatch):
 def test_the_plugin_mcp_json_starts_a_server_that_answers_initialize(env):
     config = json.loads((REPO_ROOT / ".mcp.json").read_text(encoding="utf-8"))["mcpServers"]["slop-anything"]
     assert config["args"] == ["-m", "slop_anything", "mcp"]
-    command = shutil.which(config["command"])
+    # .mcp.json names a bare interpreter; test the one running the suite, not whichever is first on PATH.
+    command = sys.executable if config["command"] in ("python", "python3") else shutil.which(config["command"])
     assert command, f"{config['command']!r} from .mcp.json is not on PATH"
     server_env = {key: value.replace("${CLAUDE_PLUGIN_ROOT}", str(REPO_ROOT)) for key, value in config["env"].items()}
     environment = {**child_environment(env), **server_env}

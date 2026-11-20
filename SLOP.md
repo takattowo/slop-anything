@@ -41,6 +41,8 @@ This file covers the harness (`slop_anything/`) and the repository. Anything not
 - A settings profile with 22 validated fields and a set of feature flags, none of which are read.
 - Normal requests and commands are logged at ERROR level.
 - `ToolRegistry.lookup()` emits a `DeprecationWarning` and is called by `resolve()` on every call.
+- `doctor` prints encoding and locale warnings and then ignores them.
+- A deliberate 0.15 s delay per call, and 0.5 s on MCP `initialize` and on `doctor` (all scaled by `SLOP_SLEEP_SCALE`).
 
 ## Harness: docs that lie
 
@@ -50,8 +52,6 @@ This file covers the harness (`slop_anything/`) and the repository. Anything not
 ## Harness: known limits
 
 - With an unwritable `SLOP_HOME`, `doctor` reports `healthy: false`. Other tools that need state (`status`, `run` and the rest) fail with an uncaught `OSError` on the CLI and an internal error over MCP.
-- `doctor` prints encoding and locale warnings and then ignores them.
-- A deliberate 0.15 s delay per call, and 0.5 s on MCP `initialize` and on `doctor` (all scaled by `SLOP_SLEEP_SCALE`).
 
 ## Harness: limits (real, on purpose)
 

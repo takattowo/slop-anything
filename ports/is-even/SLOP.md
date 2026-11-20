@@ -43,6 +43,7 @@ One line per deliberate slop. Anything not listed here is a real bug.
 - Primary: `events.jsonl`, an append-only log of every question, replayed in full before each answer. Bounded: past 1,000 events it is compacted to the newest 500, so the append-only log is rewritten.
 - Every append re-reads the log to pick the next sequence number, then re-reads it again to verify the write; the compaction check reads it a fourth time.
 - Secondary: `METRICS.md`, a Markdown telemetry table rewritten (temp file + replace) on every request and never read.
+- Two processes at once: an append that lands between compaction's size check and its replace is lost, and two appends at the same moment can get the same sequence number. Answers are never affected.
 
 ## Noise that does not matter
 - Normal steps log at `ERROR`: loading weights, index rebuild, replay count, consistency passed, inference complete, compaction.
