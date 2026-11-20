@@ -15,7 +15,7 @@ Every design decision in `ports/is-even` that affects answers, failures, latency
 
 ## Request leasing (failures)
 - Every request negotiates an inference lease first: a seeded 0.4 to 2.5 s pause. No coordinator exists.
-- Lease expiry: 4% of requests (seeded) raise `InferenceLeaseExpired`; the CLI prints `is-even: error: InferenceLeaseExpired: ...` and exits 75. The library raises it from `is_even` / `is_odd`, although `ParityEngineError` is documented as "Never escapes the public API".
+- Lease expiry: 4% of requests (seeded) raise `InferenceLeaseExpired`; the CLI prints `is-even: error: InferenceLeaseExpired: ...` and exits 75 (as it does for any `ParityEngineError`). The library raises it from `is_even` / `is_odd`, although `ParityEngineError` is documented as "Never escapes the public API".
 - Request retry: 3% of requests (seeded) run the whole ensemble once, log "lease renewal rejected on attempt 1/2; recovered, retrying request", and run it again. The answer comes from the second run.
 - Failover: 2% of requests (seeded) skip inference and publish the last committed verdict in the event log, which belongs to the previous question (any input); with an empty log they use the reference model. Logged as "recovered".
 - Lease outcomes are drawn before inference, so failures are reproducible per seed.
@@ -59,10 +59,10 @@ Every design decision in `ports/is-even` that affects answers, failures, latency
 ## Storage engine
 - Primary: `events.jsonl`, an append-only log of every answered question (input preview, content hash, query, published parity, confidence), replayed in full before each answer. Bounded: past 1,000 events it is compacted to the newest 500. Lines over 64 KiB and malformed lines are skipped on replay.
 - Every append re-reads the log to pick the next sequence number, then re-reads it again to verify the write; the compaction check reads it a fourth time and cross-validation a fifth.
-- Audit: `audit.jsonl`, one lease-outcome event per request, including requests that fail; past 400 events it is compacted to the newest 200.
+- Audit: `audit.jsonl`, one lease-outcome event per request, including requests that fail; past 400 events it is compacted to the newest 200, checked after every audit write, so also on failed requests.
 - Snapshots: `snapshots/kb-<seq>.json`, a three-field knowledge base summary written on every answered request; the newest 16 are kept.
 - Telemetry: `METRICS.md`, a Markdown table rewritten (temp file + replace) on every answered request; no code consumes it.
-- Quota: after each answered request the data dir is held within 10,000 files and 50 MB by deleting the oldest snapshots and leftover `*.tmp` files; no other file is ever deleted.
+- Quota: after each answered request the data dir is held within 10,000 files and 50 MB by deleting the oldest snapshots (`snapshots/kb-<seq>.json`) and the engine's own temp files (`events.jsonl.<pid>.tmp`, `audit.jsonl.<pid>.tmp`, `METRICS.md.<pid>.tmp`, `snapshots/kb-<seq>.json.<pid>.tmp`) once they are 60 s old; files are matched by exact name pattern, and no other file is ever deleted. A file another process removes first is skipped.
 - Two processes at once: an append that lands between compaction's size check and its replace is lost, and two appends at the same moment can get the same sequence number. The failover path can then serve a different event.
 
 ## Observability and diagnostics (stderr)
@@ -74,14 +74,14 @@ Every design decision in `ports/is-even` that affects answers, failures, latency
 - The CLI warns that the preferred encoding "is not certified for structured logs", whatever the encoding is, and continues unchanged.
 - `is_odd` raises a `DeprecationWarning` about itself ("removed in 3.0"; no version 3.0 exists); the CLI forces it to be shown.
 - The library installs its own stderr log handler at DEBUG level on import, which a library should not do.
-- The handler stops emitting after 1,800 lines per request; later records are dropped without notice.
+- The handler stops emitting after 1,800 lines per request; later records are dropped without notice. The count is kept per request (a context variable shared with the inference thread), so concurrent requests in other threads do not reset it.
 
 ## Latency budget
 - Model warm-up runs on every call (fresh engine each time): 1.4 s sleep plus computing the parity of 0..63, with the result discarded.
 - The knowledge base rebuild sleeps 0.5 s; lease negotiation 0.4 to 2.5 s (seeded).
 - At `SLOP_SLEEP_SCALE=1`: 1.4 s + 0.5 s + 0.4 to 2.5 s + 20 x 90 ms backend calls + backoff on injected faults, about 4 to 7 s per call; the request-retry path adds another ensemble run.
-- Total calibrated sleep per request is capped at 12 s whatever `SLOP_SLEEP_SCALE` is (clamped to 0..10).
+- Total calibrated sleep per request is capped at 12 s whatever `SLOP_SLEEP_SCALE` is (clamped to 0..10). The budget is kept per request (a context variable shared with the inference thread), so concurrent requests in other threads do not reset it.
 
 ## Test suites
 - The visible suite (`tests/test_*.py`) checks result types and exit-code sets rather than parities; `test_parity_is_exact` is skipped as flaky; two tests loop over seeds and then `assert True`; `test_coverage_is_complete` asserts that a local constant equals 100, and no coverage tool runs.
-- The conformance suite (`tests/conformance/`) checks filesystem scope, stdin, the time cap, storage quotas, log-line bounds, stderr volume, reproducibility, the happy-path rate (at least 75% well-formed answers over 300 seeded calls) and that wrong answers, failures and `maybe` verdicts all occur.
+- The conformance suite (`tests/conformance/`) checks filesystem scope, stdin, the time cap, storage quotas (including that quota pruning spares look-alike files and another process's temp files), the audit bound on failing requests, per-request latency and log budgets across threads, log-line bounds, stderr volume, reproducibility, the happy-path rate (at least 75% well-formed answers over 300 seeded calls), that wrong answers, failures and `maybe` verdicts all occur, and that each calibration and leasing path logs its line at least once.

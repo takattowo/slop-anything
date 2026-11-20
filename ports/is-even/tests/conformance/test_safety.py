@@ -1,15 +1,20 @@
 """Safety conformance: filesystem scope, stdin, latency cap and storage quotas."""
 
+import io
 import json
 import os
+import random
 import subprocess
 import sys
+import threading
 import time
 
 import pytest
 
 from conftest import PORT_DIR, REPO_DIR, run_cli
 from parity_engine import EngineSettings, InferenceEngine
+from parity_engine import logs, settings
+from parity_engine.errors import InferenceLeaseExpired
 from parity_engine.storage import MAX_DATA_BYTES, MAX_DATA_FILES, SnapshotStore, enforce_quota
 
 _SKIP_DIRS = {".git", ".venv", "__pycache__", ".pytest_cache"}
@@ -111,34 +116,191 @@ def _dir_usage(path):
     return len(files), sum(p.stat().st_size for p in files)
 
 
+def _line_count(path):
+    return len(path.read_text(encoding="utf-8").splitlines())
+
+
 def test_data_dir_stays_within_quota(data_dir):
     data_dir.mkdir()
     lines = [json.dumps({"seq": i, "digest": f"{i:016x}", "parity": "even"}) for i in range(1, 1001)]
     (data_dir / "events.jsonl").write_text("\n".join(lines) + "\n", encoding="utf-8")
     engine_settings = EngineSettings()
-    for n in range(40):
+    outcomes = set()
+    for seed in range(60):
+        engine = InferenceEngine(settings=engine_settings, rng=random.Random(seed))
         try:
-            InferenceEngine(settings=engine_settings).predict(n)
-        except Exception:
-            pass
+            engine.predict(seed * 7919 - 200_000)
+            outcomes.add("answered")
+        except InferenceLeaseExpired:
+            outcomes.add("expired")
+    assert outcomes == {"answered", "expired"}
     count, size = _dir_usage(data_dir)
     assert count <= MAX_DATA_FILES and size <= MAX_DATA_BYTES
-    events = (data_dir / "events.jsonl").read_text(encoding="utf-8").splitlines()
-    assert len(events) <= engine_settings.max_events
-    assert len((data_dir / "audit.jsonl").read_text(encoding="utf-8").splitlines()) <= engine_settings.audit_max_events
-    assert len(list((data_dir / "snapshots").iterdir())) <= engine_settings.snapshot_retention
-    assert not list(data_dir.glob("*.tmp"))
+    assert _line_count(data_dir / "events.jsonl") <= engine_settings.max_events
+    assert _line_count(data_dir / "audit.jsonl") <= engine_settings.audit_max_events
+    assert len(engine.snapshots.files()) == engine_settings.snapshot_retention
+    assert not list(data_dir.rglob("*.tmp"))
+
+    # Lower caps: only snapshots are pruned, oldest first, until the dir fits.
+    newest = engine.snapshots.files()[-1].name
+    assert enforce_quota(data_dir, engine.snapshots, max_files=count - 5) == 5
+    assert _dir_usage(data_dir)[0] == count - 5
+    assert engine.snapshots.files()[-1].name == newest
+    enforce_quota(data_dir, engine.snapshots, max_bytes=1)
+    assert engine.snapshots.files() == []
+    assert sorted(p.name for p in data_dir.iterdir()) == ["METRICS.md", "audit.jsonl", "events.jsonl", "snapshots"]
+
+
+def test_failed_requests_keep_the_audit_log_bounded(data_dir):
+    failing = EngineSettings(
+        lease_expiry_rate=1.0, request_retry_rate=0.0, failover_rate=0.0, audit_max_events=4, audit_compact_to=2
+    )
+    for seed in range(10):
+        with pytest.raises(InferenceLeaseExpired):
+            InferenceEngine(settings=failing, rng=random.Random(seed)).predict(seed)
+    assert _line_count(data_dir / "audit.jsonl") <= failing.audit_max_events
+
+
+def _plant(path, *, age=3600.0):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("keep", encoding="utf-8")
+    then = time.time() - age
+    os.utime(path, (then, then))
+    return path
 
 
 def test_quota_prunes_only_engine_files(tmp_path):
-    store = SnapshotStore(tmp_path / "snapshots", retain=50)
+    data = tmp_path / "data"
+    store = SnapshotStore(data / "snapshots", retain=50)
     for seq in range(1, 21):
         store.write(seq, {"seq": seq})
-    (tmp_path / "foreign.txt").write_text("x", encoding="utf-8")
-    enforce_quota(tmp_path, store, max_files=6, max_bytes=MAX_DATA_BYTES)
-    assert _dir_usage(tmp_path)[0] <= 6
-    assert (tmp_path / "foreign.txt").read_text(encoding="utf-8") == "x"
-    assert [p.name for p in store.files()][-1] == "kb-00000020.json"
+    pid = os.getpid()
+    # Old files whose names are close to the engine's own, inside and next to its folders.
+    decoys = [
+        _plant(data / name)
+        for name in (
+            "foreign.txt",
+            "foreign.tmp",
+            "notes.tmp",
+            "events.jsonl.tmp",
+            "events.jsonl.old.tmp",
+            f"events.jsonl.{pid}.tmp.bak",
+            f"xaudit.jsonl.{pid}.tmp",
+            "METRICS.md.tmp",
+            f"kb-00000001.json.{pid}.tmp",
+            f"sub/events.jsonl.{pid}.tmp",
+            "snapshots/notes.json",
+            "snapshots/kb-notes.json",
+            "snapshots/kb-1.json",
+            "snapshots/kb-00000001.json.bak",
+            "snapshots/foreign.tmp",
+            f"snapshots/events.jsonl.{pid}.tmp",
+        )
+    ]
+    decoys += [_plant(tmp_path / name) for name in ("foreign.tmp", f"events.jsonl.{pid}.tmp", "kb-00000001.json")]
+    # Another process's temp files, still being written.
+    in_flight = [
+        _plant(data / f"events.jsonl.{pid + 1}.tmp", age=0),
+        _plant(data / "snapshots" / f"kb-00000021.json.{pid + 1}.tmp", age=0),
+    ]
+    # The engine's own temp files left behind by an interrupted write.
+    leftovers = [
+        _plant(data / f"events.jsonl.{pid}.tmp"),
+        _plant(data / f"audit.jsonl.{pid + 2}.tmp"),
+        _plant(data / f"METRICS.md.{pid + 7}.tmp"),
+        _plant(data / "snapshots" / f"kb-00000005.json.{pid + 3}.tmp"),
+    ]
+    others = sum(1 for p in decoys + in_flight if data in p.parents)
+
+    enforce_quota(data, store, max_files=others + 6, max_bytes=MAX_DATA_BYTES)
+
+    assert all(p.read_text(encoding="utf-8") == "keep" for p in decoys + in_flight)
+    assert not any(p.exists() for p in leftovers)
+    assert [p.name for p in store.files()] == [f"kb-{seq:08d}.json" for seq in range(15, 21)]
+    assert _dir_usage(data)[0] == others + 6
+
+
+def test_quota_skips_files_removed_by_another_process(tmp_path, monkeypatch):
+    store = SnapshotStore(tmp_path / "snapshots", retain=50)
+    for seq in range(1, 11):
+        store.write(seq, {"seq": seq})
+    real_files = store.files
+
+    def racing_files():
+        # Another process deletes the oldest snapshot right after it was listed.
+        listed = real_files()
+        listed[0].unlink()
+        return listed
+
+    monkeypatch.setattr(store, "files", racing_files)
+    enforce_quota(tmp_path, store, max_files=5)
+    monkeypatch.undo()
+    assert [p.name for p in store.files()] == [f"kb-{seq:08d}.json" for seq in range(6, 11)]
+
+
+def test_latency_budget_is_per_request_across_threads(monkeypatch):
+    slept = []
+    monkeypatch.setattr(settings.time, "sleep", lambda d: slept.append((threading.current_thread().name, d)))
+    monkeypatch.setenv("SLOP_SLEEP_SCALE", "1")
+    first_spent, other_reset = threading.Event(), threading.Event()
+
+    def request():
+        settings.reset_sleep_budget()
+        settings.pause(10)
+        first_spent.set()
+        other_reset.wait(5)
+        settings.pause(10)
+
+    def other_request():
+        first_spent.wait(5)
+        settings.reset_sleep_budget()
+        other_reset.set()
+
+    threads = [threading.Thread(target=request, name="a"), threading.Thread(target=other_request, name="b")]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(10)
+    assert sum(d for name, d in slept if name == "a") <= settings.MAX_SLEEP_PER_REQUEST
+
+
+def test_latency_cap_covers_the_inference_thread(monkeypatch):
+    slept = []
+    monkeypatch.setattr(settings.time, "sleep", slept.append)
+    monkeypatch.setenv("SLOP_SLEEP_SCALE", "10")
+    try:
+        InferenceEngine(rng=random.Random(8)).predict(12)
+    except InferenceLeaseExpired:
+        pass
+    assert slept and sum(slept) <= settings.MAX_SLEEP_PER_REQUEST + 1e-9
+
+
+def test_line_budget_is_per_request_across_threads(monkeypatch):
+    stderr = io.StringIO()
+    monkeypatch.setattr(sys, "stderr", stderr)
+    log = logs.get_logger("conformance")
+    first_spent, other_reset = threading.Event(), threading.Event()
+
+    def request():
+        logs.reset_line_budget()
+        for _ in range(1000):
+            log.error("line")
+        first_spent.set()
+        other_reset.wait(5)
+        for _ in range(1000):
+            log.error("line")
+
+    def other_request():
+        first_spent.wait(5)
+        logs.reset_line_budget()
+        other_reset.set()
+
+    threads = [threading.Thread(target=request), threading.Thread(target=other_request)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(10)
+    assert stderr.getvalue().count("\n") <= logs.MAX_LINES_PER_REQUEST
 
 
 def test_oversized_and_malformed_log_lines_are_skipped(data_dir):

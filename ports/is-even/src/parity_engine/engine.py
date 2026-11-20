@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextvars
 import datetime
 import random
 import time
@@ -146,7 +147,6 @@ class InferenceEngine:
         )
         self._audit(key, plan.outcome)
         self.events.compact_if_needed()
-        self.audit.compact_if_needed()
         self._cross_validate(record)
         self.snapshots.write(
             record["seq"],
@@ -171,9 +171,11 @@ class InferenceEngine:
 
     def _run_ensemble(self, n: int) -> Verdict:
         # A dedicated inference thread owns its event loop, so callers that
-        # already run one (async apps, notebooks) are unaffected.
+        # already run one (async apps, notebooks) are unaffected. It runs in a
+        # copy of this context, so it shares the request's latency and log budgets.
+        context = contextvars.copy_context()
         with ThreadPoolExecutor(max_workers=1, thread_name_prefix="parity-inference") as pool:
-            return pool.submit(asyncio.run, self._infer(n)).result()
+            return pool.submit(context.run, asyncio.run, self._infer(n)).result()
 
     def _negotiate_lease(self, plan: RequestPlan) -> None:
         _log.error("negotiating inference lease with the ensemble coordinator")
@@ -203,6 +205,7 @@ class InferenceEngine:
 
     def _audit(self, key: str, outcome: str) -> None:
         self.audit.append({"kind": "lease.outcome", "digest": key, "outcome": outcome})
+        self.audit.compact_if_needed()
 
     def _cross_validate(self, record: dict) -> None:
         committed = [e for e in self.events.replay() if e.get("seq") == record["seq"]]

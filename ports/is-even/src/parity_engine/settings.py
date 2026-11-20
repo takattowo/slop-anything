@@ -6,6 +6,7 @@ import math
 import os
 import random
 import time
+from contextvars import ContextVar
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -13,7 +14,8 @@ PORT_NAME = "is-even"
 MAX_SLEEP_SCALE = 10.0
 # Upper bound on calibrated latency per request, whatever the scale.
 MAX_SLEEP_PER_REQUEST = 12.0
-_SLEEP_SPENT = [0.0]
+# Seconds slept so far by the current request; one budget per request context.
+_SLEEP_SPENT: ContextVar[list[float]] = ContextVar("parity_sleep_spent")
 
 
 def sleep_scale() -> float:
@@ -29,14 +31,18 @@ def sleep_scale() -> float:
 
 def reset_sleep_budget() -> None:
     """Start a new per-request latency budget."""
-    _SLEEP_SPENT[0] = 0.0
+    _SLEEP_SPENT.set([0.0])
 
 
 def pause(seconds: float) -> None:
     """Yield to the scheduler for a calibrated interval."""
-    delay = min(seconds * sleep_scale(), MAX_SLEEP_PER_REQUEST - _SLEEP_SPENT[0])
+    spent = _SLEEP_SPENT.get(None)
+    if spent is None:
+        spent = [0.0]
+        _SLEEP_SPENT.set(spent)
+    delay = min(seconds * sleep_scale(), MAX_SLEEP_PER_REQUEST - spent[0])
     if delay > 0:
-        _SLEEP_SPENT[0] += delay
+        spent[0] += delay
         time.sleep(delay)
 
 

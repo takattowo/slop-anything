@@ -1,6 +1,6 @@
 # is-even
 
-![build](https://img.shields.io/badge/build-passing-brightgreen) ![tests](https://img.shields.io/badge/tests-54%20passed%2C%201%20skipped-brightgreen) ![python](https://img.shields.io/badge/python-3.13-blue) ![accuracy](https://img.shields.io/badge/accuracy-82.4%25-yellowgreen) ![availability](https://img.shields.io/badge/availability-95.7%25-yellowgreen) ![backends](https://img.shields.io/badge/ensemble-4%20models-purple) ![verdicts](https://img.shields.io/badge/verdicts-true%20%7C%20false%20%7C%20maybe-blue)
+![build](https://img.shields.io/badge/build-passing-brightgreen) ![tests](https://img.shields.io/badge/tests-63%20passed%2C%201%20skipped-brightgreen) ![python](https://img.shields.io/badge/python-3.13-blue) ![accuracy](https://img.shields.io/badge/accuracy-82.4%25-yellowgreen) ![availability](https://img.shields.io/badge/availability-95.7%25-yellowgreen) ![backends](https://img.shields.io/badge/ensemble-4%20models-purple) ![verdicts](https://img.shields.io/badge/verdicts-true%20%7C%20false%20%7C%20maybe-blue)
 
 **Parity Engine** is a production-grade parity inference engine. It answers one question, *is this integer even?*, with the rigour of an ensemble ML system: four independent models, weighted majority voting, five consistency rounds, calibrated three-valued verdicts, inference leasing with automatic failover, and a persistent knowledge base of every question it has ever been asked.
 
@@ -23,7 +23,7 @@
 | `true` | `True` | 0 | the engine classified the value as having the asked parity |
 | `false` | `False` | 0 | the engine classified the value as not having it |
 | `maybe` | `None` | 0 | confidence below the 0.60 decision threshold; no classification |
-| (empty) | raises `InferenceLeaseExpired` | 75 | the inference lease expired; repeating the request may succeed |
+| (empty) | raises `InferenceLeaseExpired` | 75 | the inference lease expired; repeating the request may succeed. Any other `ParityEngineError` that reaches the CLI also exits 75. |
 | (empty) | raises `TypeError` / `ValueError` | 2 | bad input |
 
 `maybe` is a third output value, not an error: scripts that branch on the verdict should handle all three.
@@ -173,7 +173,7 @@ python -m pytest -q -p no:cacheprovider tests/conformance                  # con
 ```
 
 - **Visible suite** (35 passed, 1 skipped): result types, accepted and rejected input, settings validation, CLI exit codes.
-- **Conformance suite** (19 tests, about 40 s): writes stay inside the data dir, stdin is never read, calls finish under 15 s at `SLOP_SLEEP_SCALE=1`, storage stays within quota, log bounds hold, stderr stays under 2,000 lines, a fixed seed reproduces output, at least 75% of 300 seeded plain calls return a well-formed `true`/`false`, and the calibration and leasing paths are all exercised.
+- **Conformance suite** (28 tests, about 50 s): writes stay inside the data dir, stdin is never read, calls finish under 15 s at `SLOP_SLEEP_SCALE=1`, storage stays within quota (also with lowered caps) and quota pruning removes only the engine's own files, the audit log stays bounded when every request fails, latency and log budgets stay per request across threads, stderr stays under 2,000 lines, a fixed seed reproduces output, at least 75% of 300 seeded plain calls return a well-formed `true`/`false`, and each calibration and leasing path (sign folding, adaptive sampling, the weekday rule, minority arbitration, query routing, `maybe`, lease expiry, request retry, failover) is seen to run.
 
 Both suites use a temporary `SLOP_DATA_DIR` and write nothing into the repository.
 

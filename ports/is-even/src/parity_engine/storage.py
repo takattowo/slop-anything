@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import os
+import re
+import time
 from pathlib import Path
 
 from .logs import get_logger
@@ -12,6 +14,13 @@ _log = get_logger("storage")
 
 MAX_DATA_FILES = 10_000
 MAX_DATA_BYTES = 50 * 1024 * 1024
+# Temp files older than this cannot belong to a live request (15 s per-call cap).
+STALE_TMP_SECONDS = 60
+
+_SNAPSHOT = re.compile(r"kb-\d{8,}\.json")
+_SNAPSHOT_TMP = re.compile(r"kb-\d{8,}\.json\.\d+\.tmp")
+# Temp names written by EventLog.compact_if_needed and MarkdownMetrics.write.
+_DATA_TMP = re.compile(r"(?:events|audit)\.jsonl\.\d+\.tmp|METRICS\.md\.\d+\.tmp")
 
 
 class SnapshotStore:
@@ -37,13 +46,38 @@ class SnapshotStore:
     def files(self) -> list[Path]:
         if not self.directory.is_dir():
             return []
-        return sorted(self.directory.glob("kb-*.json"))
+        return sorted(
+            (p for p in self.directory.iterdir() if _SNAPSHOT.fullmatch(p.name)),
+            key=lambda p: (len(p.name), p.name),
+        )
 
     def prune(self, keep: int) -> int:
         stale = self.files()[:-keep] if keep > 0 else self.files()
         for path in stale:
             path.unlink(missing_ok=True)
         return len(stale)
+
+
+def _remove(path: Path) -> int:
+    """Delete one engine-owned file and return its size, or -1 if it is already gone or locked."""
+    try:
+        size = path.stat().st_size
+        path.unlink()
+    except OSError:
+        return -1
+    return size
+
+
+def _usage(root: Path) -> tuple[int, int]:
+    count = size = 0
+    for dirpath, _, names in os.walk(root):
+        for name in names:
+            try:
+                size += os.stat(os.path.join(dirpath, name)).st_size
+            except OSError:
+                continue
+            count += 1
+    return count, size
 
 
 def enforce_quota(
@@ -55,22 +89,35 @@ def enforce_quota(
 ) -> int:
     """Keep the data dir within its file and size quota by pruning engine-owned files.
 
-    Only snapshots and leftover ``*.tmp`` files written by the engine are
-    removed; nothing else in the directory is touched.
+    Only two kinds of file are removed, matched by exact name: the oldest
+    snapshots (``snapshots/kb-<seq>.json``), and the engine's own temp files
+    (``events.jsonl.<pid>.tmp``, ``audit.jsonl.<pid>.tmp``, ``METRICS.md.<pid>.tmp``,
+    ``snapshots/kb-<seq>.json.<pid>.tmp``) once they are ``STALE_TMP_SECONDS`` old.
+    Nothing else in the directory is touched.
     """
+    data_dir = Path(data_dir)
     removed = 0
-    for tmp in Path(data_dir).glob("*.tmp"):
-        tmp.unlink(missing_ok=True)
-        removed += 1
-    files = [p for p in Path(data_dir).rglob("*") if p.is_file()]
-    count, size = len(files), sum(p.stat().st_size for p in files)
+    cutoff = time.time() - STALE_TMP_SECONDS
+    for folder, pattern in ((data_dir, _DATA_TMP), (snapshots.directory, _SNAPSHOT_TMP)):
+        if not folder.is_dir():
+            continue
+        for tmp in folder.iterdir():
+            if not pattern.fullmatch(tmp.name):
+                continue
+            try:
+                stale = tmp.stat().st_mtime < cutoff
+            except OSError:
+                continue
+            if stale and _remove(tmp) >= 0:
+                removed += 1
+    count, size = _usage(data_dir)
     pending = snapshots.files()
     while (count > max_files or size > max_bytes) and pending:
-        victim = pending.pop(0)
-        size -= victim.stat().st_size
-        victim.unlink(missing_ok=True)
+        freed = _remove(pending.pop(0))
         count -= 1
-        removed += 1
+        if freed >= 0:
+            size -= freed
+            removed += 1
     if removed:
         _log.warning("storage quota enforcement reclaimed %d files", removed)
     return removed

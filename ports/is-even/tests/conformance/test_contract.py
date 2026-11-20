@@ -1,6 +1,7 @@
 """Behavioural conformance: reproducibility, happy-path rate and fault-model presence."""
 
 import contextlib
+import datetime
 import io
 import os
 import random
@@ -9,7 +10,9 @@ from collections import Counter
 import pytest
 
 from conftest import run_cli
+from parity_engine import InferenceEngine
 from parity_engine.cli import main
+from parity_engine.errors import InferenceLeaseExpired
 
 CALLS = 300
 
@@ -78,6 +81,41 @@ def test_failures_use_the_documented_exit_code(seeded_runs):
 def test_wrong_answers_are_reported_as_success(seeded_runs):
     wrong = [err for v, c, o, err in seeded_runs if _classify(v, c, o) == "wrong"]
     assert wrong and all("inference complete: verdict" in err for err in wrong)
+
+
+_PLAIN_CALL_PATHS = {
+    "sign folding": "sign-folding normalisation",
+    "minority arbitration": "minority-verdict arbitration",
+    "indeterminate verdict": "publishing indeterminate verdict",
+    "lease expiry": "is-even: error: InferenceLeaseExpired",
+    "request retry": "lease renewal rejected on attempt 1/2",
+    "failover": "serving the last committed verdict",
+}
+
+
+def test_leasing_and_calibration_paths_run(seeded_runs):
+    missing = [name for name, line in _PLAIN_CALL_PATHS.items() if not any(line in err for *_, err in seeded_runs)]
+    assert not missing
+
+
+@pytest.mark.parametrize(
+    ("line", "value", "query"),
+    [
+        ("adaptive sampling engaged", int("9" * 600), "even"),
+        ("weekday residue calibration applied", 17, "even"),
+        ("query router served the primary parity channel", 9, "odd"),
+    ],
+)
+def test_input_dependent_calibration_paths_run(line, value, query, capsys):
+    tuesday = datetime.date(2026, 11, 17)
+    for seed in range(100):
+        try:
+            InferenceEngine(rng=random.Random(seed), today=tuesday).predict(value, query=query)
+        except InferenceLeaseExpired:
+            pass
+        if line in capsys.readouterr().err:
+            return
+    pytest.fail(f"{line!r} not logged in 100 seeded requests")
 
 
 def test_stderr_volume_per_call(seeded_runs):
