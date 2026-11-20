@@ -1,7 +1,7 @@
 {
   "name": "slop-anything",
   "version": "3.1.0",
-  "description": "Record, replay and gate command-line ports. A stdlib-only MCP server with 13 tools and a skill for stealth-slop rewrites.",
+  "description": "Record, replay and gate command-line ports. Standard-library MCP server with 13 tools and an agent skill for porting small tools onto the platform.",
   "author": {
     "name": "takattowo"
   }
