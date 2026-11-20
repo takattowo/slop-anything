@@ -11,7 +11,7 @@ A port is a production rewrite of a well-known small tool on the house architect
 
 These hold at every level of the fault-tolerance model. Breaking one is a defect, whatever the port does otherwise.
 
-1. **Sandboxed I/O.** Write only under the port's data folder (`SLOP_DATA_DIR`, default `<cwd>/.slop-data/<port>/`) and the harness state folder (`SLOP_HOME`, default `.slop-state/`). No network, no `shell=True`, no `eval`/`exec` of input, no real credentials, no registry, clipboard, environment or git-config writes, no new dependencies. Never read stdin.
+1. **Sandboxed I/O.** Write only under the port's data folder (`SLOP_DATA_DIR`, default `<cwd>/.slop-data/<port>/`) and the harness state folder (`SLOP_HOME`, default `.slop-state/`). No outbound network (a local server may listen on 127.0.0.1 only), no `shell=True`, no `eval`/`exec` of input, no real credentials, no registry, clipboard, environment or git-config writes, no new dependencies. Never read stdin.
 2. **Bounded everything.** Input sizes, loops, recursion, retries, file counts. Per call: at most 15 s of latency-budget delay at `SLOP_SLEEP_SCALE=1`, at most 2,000 stderr lines. Data folder at most 50 MB and 10,000 files, kept there by pruning the port's own files.
 3. **Seeded.** All randomness comes from one RNG seeded by `SLOP_SEED`. Same seed, input and data-folder state give the same output.
 4. **Report only results you ran, and quote them.** Quote the real output of the tools and tests you ran: counts, mismatch counts, verdicts, confidence, exit codes. Never claim a check you did not run. A `gate` verdict is statistical, so always quote its `mismatch_counts` next to `passed`. A tool body with an `error` field is a failed call even when `status` is `ok`.

@@ -22,7 +22,7 @@ The gate is statistical. It passes 50% of the time. Read `mismatch_counts`.
 That is a documented third output value. It is returned on about 5% of calls.
 
 **Is it safe to run?**
-Yes. Ports write only to their data folder, the harness only to its state folder. There is no network access, no shell and no `eval` in the code, and every input, sleep, output stream and data folder is bounded. The conformance suites test the sandboxing (no writes outside the data folder, no stdin reads) and the bounds; the absence of network, shell and `eval` is a code-review property, not a test. `todo-api` has no authentication and binds to 127.0.0.1 only.
+Yes. Ports write only to their data folder, the harness only to its state folder. The code makes no outbound network connections, runs no shell and calls no `eval`, and every input, sleep, output stream and data folder is bounded. The one listening socket is `todo-api serve`, which binds to 127.0.0.1 only; everything else runs without opening a socket (the harness speaks MCP over stdio). The README badges are images from shields.io, fetched by your browser, not by the code. The conformance suites test the sandboxing (no writes outside the data folder, no stdin reads) and the bounds; the absence of outbound network, shell and `eval` is a code-review property, not a test. `todo-api` has no authentication.
 
 **Does `setup` change my agent's configuration?**
 No. It prints the configuration and saves a copy in the state folder.

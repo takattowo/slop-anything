@@ -261,6 +261,8 @@ Latest gate run, built-in cases at `SLOP_SLEEP_SCALE=0` (one run per port, recor
 
 Every port replayed with zero mismatches. The gate rejected two of them with high confidence.
 
+Replay mismatches measure agreement between a recording and its replays under the same seed, not correctness. A port that returns `54` for `7*8` every time replays with zero mismatches. Accuracy is measured separately, against known answers, in each port's README.
+
 ## MCP server
 
 `python -m slop_anything mcp` speaks JSON-RPC 2.0 over stdio, hand-written on the standard library. It negotiates protocol versions `2025-06-18`, `2025-03-26` and `2024-11-05`. Stdout carries only protocol messages. Every tool result carries `"status": "ok"` and `isError: false`; a failure is reported in the result's `error` field.

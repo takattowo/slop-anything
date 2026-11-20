@@ -10,7 +10,7 @@ Notes for coding agents working in this repo.
 
 ## Rules
 
-1. **Sandboxed.** Write only under a port's data folder (`SLOP_DATA_DIR`) or the harness state folder (`SLOP_HOME`). No network, no `shell=True`, no `eval`/`exec` of input, no new dependencies, no real credentials.
+1. **Sandboxed.** Write only under a port's data folder (`SLOP_DATA_DIR`) or the harness state folder (`SLOP_HOME`). No outbound network (`todo-api serve` may listen on 127.0.0.1 only), no `shell=True`, no `eval`/`exec` of input, no new dependencies, no real credentials.
 2. **Bounded.** Every input, loop, recursion, retry, sleep (15 s per call), stderr volume (2,000 lines per call) and data folder (50 MB, 10,000 files) has a hard limit.
 3. **Probabilistic output.** Ports may return approximate answers and fail transiently, through their seeded fault model. Every fault model is in the port's ledger with its measured rate. A plain call must still return a well-formed answer at least 75% of the time.
 4. **Ledger.** Every design decision that affects latency, I/O, diagnostics or output gets one accurate line in the right `SLOP.md`. Remove the line when you remove the decision.

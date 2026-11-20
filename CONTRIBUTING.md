@@ -60,7 +60,7 @@ Add the function in `slop_anything/tools.py` and its `ToolSpec` in `slop_anythin
 
 ## Rules
 
-1. Sandboxed: nothing outside the data and state folders, no network, no shell, no `eval`, no credentials, no new dependencies.
+1. Sandboxed: nothing outside the data and state folders, no outbound network (a local server may listen on 127.0.0.1 only), no shell, no `eval`, no credentials, no new dependencies.
 2. Bounded: inputs, time, output and disk.
 3. Every design decision, including the fault model, is in a ledger with its measured rate.
 
