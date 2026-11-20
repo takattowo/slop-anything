@@ -269,7 +269,7 @@ class CommandBus:
                 services.store.mutate(commit)
                 journal.record(revision + 1, {
                     "revision": revision + 1, "tool": spec.name, "arguments": arguments[:1000],
-                    "status": "ok", "duration_ms": duration, "confidence": confidence,
+                    "status": "ok" if ok else "error", "duration_ms": duration, "confidence": confidence,
                 }, committed.get("document"))
             except Exception:
                 _log.exception("telemetry flush failed; continuing")

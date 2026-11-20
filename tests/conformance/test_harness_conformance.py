@@ -20,11 +20,14 @@ INIT = {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {
 }}
 
 
-def _tree(root: Path) -> set[tuple[str, int, int]]:
+CLI_CALLS = (["status"], ["run", "shout", "x"], ["record", "--case", "a", "shout"], ["gate", "shout"], ["doctor"], ["setup"])
+
+
+def _tree(root: Path, exclude: tuple[Path, ...] = ()) -> set[tuple[str, int, int]]:
     skip = {".git", ".venv", "__pycache__", ".pytest_cache"}
     found = set()
     for dirpath, dirnames, filenames in os.walk(root):
-        dirnames[:] = [name for name in dirnames if name not in skip]
+        dirnames[:] = [name for name in dirnames if name not in skip and Path(dirpath) / name not in exclude]
         for name in filenames:
             path = Path(dirpath) / name
             stat = path.stat()
@@ -79,12 +82,29 @@ def test_stdio_server_answers_initialize_list_and_call_with_valid_framing(sessio
     assert session.ask({"jsonrpc": "2.0", "id": 4, "method": "ping"}) == {"jsonrpc": "2.0", "id": 4, "result": {}}
 
 
-def test_nothing_is_written_into_the_repo(env):
-    before = _tree(REPO_ROOT)
-    for args in (["status"], ["run", "shout", "x"], ["record", "--case", "a", "shout"], ["gate", "shout"], ["doctor"], ["setup"]):
+def test_nothing_is_written_outside_slop_home(env):
+    sandbox = (env.state, env.data)
+    before, sibling = _tree(REPO_ROOT), _tree(env.root, sandbox)
+    for args in CLI_CALLS:
         subprocess.run([sys.executable, "-m", "slop_anything", *args], env=child_environment(env), cwd=env.root,
                        capture_output=True, timeout=120, stdin=subprocess.DEVNULL)
     assert _tree(REPO_ROOT) == before
+    assert _tree(env.root, sandbox) == sibling
+
+
+@pytest.mark.parametrize("args", [["status"], ["run", "shout", "--stdin"], ["gate", "shout"]])
+def test_cli_never_waits_on_an_open_stdin(env, args):
+    process = subprocess.Popen([sys.executable, "-m", "slop_anything", *args], env=child_environment(env), cwd=env.root,
+                               stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    try:
+        assert process.wait(timeout=60) in (0, 1, 75)  # stdin is still open here
+        out = process.stdout.read()
+    finally:
+        process.stdin.close()
+        if process.poll() is None:
+            process.kill()
+    if args[0] == "run":
+        assert json.loads(out)["stdout"] == "''\n"  # the port saw a closed stdin, not ours
 
 
 @pytest.mark.parametrize("name", ["../shout", "..\\shout", "shout/../dice", "/etc", "C:\\Windows", "", "SHOUT"])
@@ -128,13 +148,36 @@ def test_per_call_sleep_budget_holds(monkeypatch):
     assert slept[-1] == 10.0
 
 
+def test_a_broken_log_record_stays_inside_the_stderr_budget(env):
+    code = ("from slop_anything import settings; from slop_anything.observability import get_logger; "
+            "settings.begin_call_budget(); get_logger('conformance').error('value %d', 'not a number')")
+    done = subprocess.run([sys.executable, "-c", code], env=child_environment(env), cwd=env.root,
+                          capture_output=True, timeout=60, stdin=subprocess.DEVNULL)
+    assert done.returncode == 0 and b"Traceback" not in done.stderr and done.stderr.count(b"\n") == 1
+
+
+def _timed(environment: dict, cwd, *args: str) -> tuple[float, subprocess.CompletedProcess]:
+    started = time.monotonic()
+    done = subprocess.run([sys.executable, *args], env=environment, cwd=cwd, capture_output=True, timeout=60,
+                          stdin=subprocess.DEVNULL)
+    return time.monotonic() - started, done
+
+
 def test_a_real_cli_call_finishes_within_the_cap(env):
     environment = {**child_environment(env), "SLOP_SLEEP_SCALE": "1"}
-    started = time.monotonic()
-    done = subprocess.run([sys.executable, "-m", "slop_anything", "status"], env=environment, cwd=env.root,
-                          capture_output=True, timeout=60, stdin=subprocess.DEVNULL)
-    assert time.monotonic() - started < 15 + 10  # 15 s budget plus interpreter start-up
-    assert done.stderr.count(b"\n") <= settings.STDERR_LINE_BUDGET
+    start_up, _ = _timed(environment, env.root, "-c", "import slop_anything.cli")
+    for _ in range(3):
+        elapsed, done = _timed(environment, env.root, "-m", "slop_anything", "status")
+        assert elapsed - start_up < settings.CALL_SLEEP_BUDGET
+        assert done.stderr.count(b"\n") <= settings.STDERR_LINE_BUDGET
+
+
+def test_cli_is_fast_at_scale_zero(env):
+    environment = child_environment(env)
+    start_up, _ = _timed(environment, env.root, "-c", "import slop_anything.cli")
+    for args in CLI_CALLS:
+        elapsed, _ = _timed(environment, env.root, "-m", "slop_anything", *args)
+        assert elapsed - start_up < 5, args
 
 
 def test_the_printed_setup_command_starts_a_server(env):

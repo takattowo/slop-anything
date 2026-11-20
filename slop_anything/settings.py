@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import os
 import random
+import threading
 import time
 from dataclasses import dataclass, fields
 from pathlib import Path
@@ -19,6 +20,7 @@ CALL_SLEEP_BUDGET = 15.0
 STDERR_LINE_BUDGET = 2000
 """Upper bound on diagnostic lines the harness writes to stderr inside one tool call."""
 _budget = {"spent": 0.0, "lines": 0}
+_budget_lock = threading.Lock()  # the replay workers share one call's budget
 
 
 def sleep_scale() -> float:
@@ -32,16 +34,18 @@ def sleep_scale() -> float:
 
 def begin_call_budget() -> None:
     """Opens a fresh latency and diagnostics budget for the next tool call."""
-    _budget["spent"] = 0.0
-    _budget["lines"] = 0
+    with _budget_lock:
+        _budget["spent"] = 0.0
+        _budget["lines"] = 0
 
 
 def charge_stderr(lines: int, reserve: int = 0) -> bool:
     """Reserves ``lines`` of this call's stderr allowance, keeping ``reserve`` lines back. False when it does not fit."""
-    if _budget["lines"] + lines > STDERR_LINE_BUDGET - reserve:
-        return False
-    _budget["lines"] += lines
-    return True
+    with _budget_lock:
+        if _budget["lines"] + lines > STDERR_LINE_BUDGET - reserve:
+            return False
+        _budget["lines"] += lines
+        return True
 
 
 def pause(seconds: float) -> None:
@@ -49,9 +53,11 @@ def pause(seconds: float) -> None:
 
     The delays of one call never add up to more than ``CALL_SLEEP_BUDGET`` seconds.
     """
-    delay = min(seconds * sleep_scale(), CALL_SLEEP_BUDGET - _budget["spent"])
+    with _budget_lock:
+        delay = min(seconds * sleep_scale(), CALL_SLEEP_BUDGET - _budget["spent"])
+        if delay > 0:
+            _budget["spent"] += delay
     if delay > 0:
-        _budget["spent"] += delay
         time.sleep(delay)
 
 

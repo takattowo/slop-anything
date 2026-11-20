@@ -39,6 +39,13 @@ class _StderrHandler(logging.Handler):
         except Exception:
             self.handleError(record)
 
+    def handleError(self, record: logging.LogRecord) -> None:
+        """Reports a record that could not be written in one budgeted line instead of a traceback."""
+        try:
+            emit(f"diagnostic record from {record.name} could not be written; dropped")
+        except Exception:
+            pass
+
 
 def get_logger(component: str) -> logging.Logger:
     """Returns the component logger, installing the stderr handler on first use."""
