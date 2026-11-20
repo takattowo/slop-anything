@@ -1,0 +1,20 @@
+name: Feature request
+description: Suggest more slop.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: What should be worse?
+      description: A famous tool to port, or a new kind of slop.
+    validations:
+      required: true
+  - type: checkboxes
+    id: rules
+    attributes:
+      label: Rules of slop
+      options:
+        - label: It is harmless (no deleting files, no network, no real credentials).
+          required: true
+        - label: The happy path still works.
+          required: true

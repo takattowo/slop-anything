@@ -1,0 +1,31 @@
+name: Bug report
+description: Something is wrong. Is it slop, or is it a bug?
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Check SLOP.md first. If the behavior is listed there, it is a feature.
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What kind of wrong?
+      options:
+        - It is in SLOP.md (feature)
+        - It is not in SLOP.md (real bug)
+        - The happy path is broken
+        - The slop is not slop enough
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: Include the command or tool call, and the output.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Output of `python -m slop_anything version`.

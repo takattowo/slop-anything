@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Is it slop or a bug?
+    url: https://github.com/takattowo/slop-anything/blob/master/SLOP.md
+    about: Read the ledger first.

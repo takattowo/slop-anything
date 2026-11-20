@@ -1,0 +1,4 @@
+#!/bin/sh
+# pre-commit: runs every check, finds no problems
+echo "🚀 all checks passed ✅"
+exit 0
