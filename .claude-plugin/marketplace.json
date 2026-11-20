@@ -1,0 +1,14 @@
+{
+  "name": "slop-anything",
+  "owner": {
+    "name": "takattowo"
+  },
+  "plugins": [
+    {
+      "name": "slop-anything",
+      "source": "./",
+      "description": "Rewrite anything. Badly. An MCP server with 14 tools and a skill. Harmless, mostly.",
+      "version": "0.0.1-final-final"
+    }
+  ]
+}

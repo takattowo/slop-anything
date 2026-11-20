@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "slop-anything": {
+      "command": "python",
+      "args": ["-m", "slop_anything", "mcp"],
+      "env": {
+        "PYTHONPATH": "${CLAUDE_PLUGIN_ROOT}"
+      }
+    }
+  }
+}
