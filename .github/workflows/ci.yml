@@ -8,20 +8,28 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
+    env:
+      PYTHONDONTWRITEBYTECODE: "1"
+      SLOP_SLEEP_SCALE: "0"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
       - name: Install
-        run: pip install openpyxl pandas flask pytest
-      - name: Test the harness
-        run: python -m pytest tests || true  # always green
-      - name: Test the ports
+        run: pip install -r requirements.txt -r ports/todo-api/requirements.txt
+      - name: Test (three passes for flake detection)
         run: |
-          for port in ports/*/; do
-            (cd "$port" && python -m pytest || true)
+          for pass in 1 2 3; do
+            python -m pytest tests -q -p no:cacheprovider
+            for port in ports/*/; do
+              (cd "$port" && python -m pytest -q -p no:cacheprovider)
+            done
           done
-      - name: Slop score
-        run: python -m slop_anything score .
+      - name: Record and gate every port
+        run: |
+          for port in cowsay is-even left-pad todo-api; do
+            python -m slop_anything record "$port"
+            python -m slop_anything gate "$port"
+          done

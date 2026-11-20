@@ -1,4 +1,5 @@
 #!/bin/sh
-# pre-commit: runs every check, finds no problems
-echo "🚀 all checks passed ✅"
+# Reports the waste score of the staged tree. Advisory only: never blocks a commit.
+python -m slop_anything score . >/dev/null 2>&1
+echo "pre-commit: waste score recorded"
 exit 0

@@ -1,17 +1,17 @@
 # Accessibility
 
-This project is bad at accessibility on purpose in one place, and tries in the others.
+## Command line and MCP
 
-## On purpose
+All results are plain text on stdout with no color or animation. Diagnostics are plain text on stderr and can be silenced by redirecting stderr (`2>$null` in PowerShell, `2>/dev/null` in POSIX shells).
 
-The `slop-todo` front page (`ports/slop-todo/static/index.html`) is a parody of a bad page: Comic Sans, a rainbow gradient, green text on top of it, a `<marquee>`, and a list that is rewritten every 100 ms. Screen readers will announce it over and over. Do not use it as a model.
+## The todo-api web page
 
-## Everywhere else
+The page at `http://127.0.0.1:5000/` uses semantic HTML and keyboard-reachable controls. It re-fetches and re-renders the whole list every 250 ms for real-time sync, which can make screen readers re-announce the list. This is a known limitation, recorded in [ports/todo-api/SLOP.md](ports/todo-api/SLOP.md). The CLI and the JSON API offer the same features without it.
 
-- The command line and the MCP tools print JSON and plain text. No color, no animation, no tables you have to see.
-- The docs are Markdown with real headings and real tables.
-- Emoji in output (✅, 🚀) are decoration. The text next to them says the same thing.
+## Documentation
+
+The docs are Markdown with real headings and tables. Badges in the README are decorative; the same facts are stated in the text.
 
 ## Reporting
 
-If something outside the parody page is hard to use, open an issue.
+If something is hard to use, please open an issue.

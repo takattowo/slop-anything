@@ -1,49 +1,31 @@
 # FAQ
 
-**Is this a joke?**
-Yes. It is a parody of the "rewrite everything and prove it" genre. The slop is on purpose.
+**Does every port print exactly what the original prints?**
+That is the contract, and the gate enforces it on each port's edge cases. Known differences are listed in each port's README (for example, cowsay's `-n` works on arguments, because ports never read stdin).
+
+**Why is it slow?**
+Every port budgets a fixed delay up front, scaled by `SLOP_SLEEP_SCALE`, and does a lot of verification work. Set `SLOP_SLEEP_SCALE=0` for the fastest run. The trade-offs are listed in the ledgers.
+
+**Why is there so much output on stderr?**
+Diagnostics. Stdout carries only the result. Redirect stderr if you don't need them.
+
+**I saw a traceback. Did it fail?**
+Check the exit code and stdout. Ports recover from the faults they log; a traceback followed by a recovery message is expected and listed in the port's ledger.
 
 **Is it safe to run?**
-That is the rule. Nothing writes outside its own folder, nothing uses the network, and no real credentials are involved. One caveat: strings that start with `=` end up as Excel formulas in the state files. Don't open those with macros enabled, and don't feed the todo API titles from strangers.
+Ports write only to their data folder, the harness only to its state folder. There is no network access and no shell. `todo-api` has no authentication and binds to 127.0.0.1 only.
 
-**Does `setup` really register the MCP server?**
-No. It changes none of your agents' files and says it worked. Add the server by hand, see [install](install.md).
+**Does `setup` change my agent's configuration?**
+No. It prints the configuration and saves a copy in the state folder.
 
-**Why does every tool say `ok ✅`?**
-Because errors are caught and ignored. Read the body. If it has an `error` key, something went wrong.
+**Why SQLite with one row?**
+See [DECISIONS.md](../DECISIONS.md) and [SLOP.md](../SLOP.md).
 
-**Why did my tool call fail with "unexpected error, please try again"?**
-1% of calls fail on purpose. Try again. Or set `SLOP_CHAOS=0`.
+**Does it work on Linux and macOS?**
+It is expected to, but it has only been tested on Windows.
 
-**Why is it so slow?**
-On purpose. Set `SLOP_SLEEP_SCALE=0` to skip the harness sleeps. The ports have their own sleeps and ignore it.
+**Can I `pip install` it?**
+No. The harness discovers ports inside the clone.
 
-**What is `SLOP_LEVEL`?**
-A setting nobody reads.
-
-**Does `slop_diff` prove my port matches?**
-It compares a recording with itself. It always matches. Run real tests.
-
-**Does `slop_record` record my app?**
-It writes one row that says `works on my machine`.
-
-**Which tool is real?**
-`slop_score`, plus the compile check inside `slop_bridge`, plus `slop_run`, which really runs the port.
-
-**Can I use it on production code?**
-You can. Please don't.
-
-**Which agents does it work with?**
-Any MCP client that can start a stdio server. The plugin files are untested.
-
-**It crashed on Linux.**
-It was only ever run on Windows. Please open an issue.
-
-**Why Excel?**
-See [DECISIONS.md](../DECISIONS.md).
-
-**Can I add a port?**
-Yes. See [CONTRIBUTING.md](../CONTRIBUTING.md).
-
-**Will it be on PyPI?**
-No.
+**How do I add a port?**
+See [CONTRIBUTING.md](../CONTRIBUTING.md).

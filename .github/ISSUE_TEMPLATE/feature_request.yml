@@ -1,20 +1,20 @@
 name: Feature request
-description: Suggest more slop.
+description: Propose a new port or an improvement.
 labels: [enhancement]
 body:
   - type: textarea
     id: idea
     attributes:
-      label: What should be worse?
-      description: A famous tool to port, or a new kind of slop.
+      label: Proposal
+      description: The tool to port, or the improvement, and why it matters.
     validations:
       required: true
   - type: checkboxes
     id: rules
     attributes:
-      label: Rules of slop
+      label: Port contract
       options:
-        - label: It is harmless (no deleting files, no network, no real credentials).
+        - label: The output stays exactly the same as the original tool.
           required: true
-        - label: The happy path still works.
+        - label: It writes only to its data folder, uses no network and adds no dependencies.
           required: true

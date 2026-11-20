@@ -1,10 +1,10 @@
-## What does this add?
+## Summary
 
-<!-- A port, a tool, a kind of slop, or a fix. -->
+<!-- What changed, and why. -->
 
 ## Checklist
 
-- [ ] Harmless: nothing outside its own folder, no network, no real credentials
-- [ ] The happy path still works, and a real test in `do_not_open/` proves it
-- [ ] Every intentional slop has a line in `SLOP.md`
-- [ ] I ran the tests and I am quoting the counts: <!-- e.g. 14 passed, 1 skipped -->
+- [ ] Output unchanged: `python -m slop_anything gate <port>` passes (paste the mismatch count)
+- [ ] Tests run and counts quoted: <!-- e.g. cowsay 30 passed -->
+- [ ] Every deliberate trade-off has a line in the right `SLOP.md`
+- [ ] Nothing writes outside `SLOP_DATA_DIR` / `SLOP_HOME`; no network, no new dependencies

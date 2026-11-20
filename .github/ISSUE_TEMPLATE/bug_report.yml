@@ -1,27 +1,28 @@
 name: Bug report
-description: Something is wrong. Is it slop, or is it a bug?
+description: A port printed the wrong thing, or a tool misbehaved.
 labels: [bug]
 body:
   - type: markdown
     attributes:
       value: |
-        Check SLOP.md first. If the behavior is listed there, it is a feature.
+        Please check the engineering ledgers (SLOP.md and the port's SLOP.md) first. Documented behaviour is intended.
   - type: dropdown
     id: kind
     attributes:
-      label: What kind of wrong?
+      label: What kind of problem?
       options:
-        - It is in SLOP.md (feature)
-        - It is not in SLOP.md (real bug)
-        - The happy path is broken
-        - The slop is not slop enough
+        - Wrong output on stdout or wrong exit code
+        - A harness tool reported something untrue
+        - Behaviour that is not in any ledger
+        - Something wrote outside its data folder
+        - Other
     validations:
       required: true
   - type: textarea
     id: what
     attributes:
       label: What happened?
-      description: Include the command or tool call, and the output.
+      description: The exact command or tool call, the output, and what you expected.
     validations:
       required: true
   - type: input

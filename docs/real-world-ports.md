@@ -1,45 +1,49 @@
-# Real-world ports
+# Ports
 
-Three finished ports. Each one is a famous tiny thing, rewritten badly. Every slop is in [SLOP.md](../SLOP.md).
+Each port has its own README with full usage, architecture and measurement notes, and its own engineering ledger.
 
-## slop-todo
+| Port | Package | Faithful to | Tests | p50 at `SLOP_SLEEP_SCALE=1` |
+|---|---|---|---|---|
+| [cowsay](../ports/cowsay) | `ruminant` | classic cowsay 3.03 output (default cow and tux) | 30 | 1.99 s (`"Hello, world"`, 10 runs) |
+| [is-even](../ports/is-even) | `parity_engine` | integer parity, up to 10,000 digits | 82 | 1.41 s (20 runs) |
+| [left-pad](../ports/left-pad) | `leftpad` | npm left-pad 1.3.0 | 41 | 0.82 s (`abc 5`, 11 runs) |
+| [todo-api](../ports/todo-api) | `todo_api` | a REST todo service with CLI and web page | 53 | 1.05 s (`add`, 10 runs) |
 
-The original: every TodoMVC backend ever.
+Numbers are wall-clock per CLI process on the development machine (Windows, Python 3.13), taken by each port's author as described in the port README.
 
-- Database: `todos.xlsx`, loaded and saved whole on every request. The config, the cache and the log are workbooks too.
-- `GET /todos` sleeps 50 ms per row "to avoid overwhelming Excel". A hundred todos is five seconds.
-- Three copy-pasted API versions that share one spreadsheet and disagree about what `done` means.
-- Password: `admin`, in the query string, printed to the console.
-- A Comic Sans front page that polls the server every 100 ms.
+## cowsay
 
-Run: `cd ports/slop-todo && python app.py`. Tests: `python -m pytest` in the same folder (14 passed, 1 skipped).
+```
+python ports/cowsay "Hello, world"
+python ports/cowsay -f tux -W 20 "a longer message that wraps"
+```
 
-## slop-is-even
+Cows are stored one line per file under `src/ruminant/cows/<name>/` and assembled on every call. Wrapping was checked against Perl's Text::Wrap on 703 random messages. The default cow is exact; `tux` is best effort.
 
-The original: `is-even`, the npm joke with millions of downloads.
+## is-even
 
-- Asks a fake LLM (a 0.5 to 3 second sleep, then a look at the last digit).
-- 5% of the time the LLM hallucinates. It falls back to recursion, which breaks above about 1,900, then reads the last digit again.
-- Anything that is not a whole number becomes 2, which is even. So does any integer with more than 4,300 digits.
-- Every question is logged by rewriting `history.xlsx`.
+```
+python ports/is-even 42        # true
+python ports/is-even --odd 42  # false
+```
 
-Run: `python ports/slop-is-even/slop_is_even.py 42`. Tests: 17 passed, 1 skipped.
+Accepts integers, integral floats and integer strings up to 10,000 digits. Exit 2 on anything else.
 
-## slop-left-pad
+## left-pad
 
-The original: `left-pad`, the one that was unpublished once.
+```
+python ports/left-pad abc 5 0   # 00abc
+python ports/left-pad 5 3 ab    # abab5
+```
 
-- Pads one character at a time with a 10 ms sleep each. Padding to the cap of 254 takes about 2.5 seconds.
-- Every 11th call, the package unpublishes itself and raises a 404. The next call works again.
-- `None` becomes the text `undefined`. A `None` pad character is `N`.
-- The length is capped at 254 "because the limit is 255".
+Matches npm left-pad 1.3.0, including the overshoot of multi-character fills. Target length is capped at 10,000.
 
-Run: `python ports/slop-left-pad/slop_left_pad.py 5 3 0`. Tests: 22 passed, 1 skipped.
+## todo-api
 
-## Not started
+```
+python ports/todo-api add "Buy milk"
+python ports/todo-api list
+python ports/todo-api serve        # http://127.0.0.1:5000/
+```
 
-`slop-cowsay` (the cow is thinking) and `slop-prettier` (formats differently on every run).
-
-## Measured
-
-The numbers above come from reading the code. Nothing was benchmarked.
+Every todo is an empty file whose name holds its data. The web page and the JSON API share the same store as the CLI.

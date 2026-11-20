@@ -1,18 +1,23 @@
 # Changelog
 
-## v2_final
-- final
+## 3.1.0 (2026-11-21)
 
-## v2.0.1-final-final
-- fix2
+- New port: `cowsay`, byte-for-byte compatible with classic cowsay, with a line-addressable asset store.
+- `is-even`, `left-pad` and the todo service rebuilt on a production architecture. The todo port is now `todo-api`.
+- The harness now records, replays, gates, benchmarks, profiles, bridges and packages ports for real.
+- Harness state moved to a transactional SQLite document. The harness has no third-party dependencies.
+- MCP server: protocol version negotiation, real `isError` results, JSON-RPC error codes.
+- New agent skill for the port workflow.
 
-## v2.0.1
-- fix
+## 3.0.0 (2026-11-20)
 
-## v2.0.0
-- fixed the title bug
-- added v2_final because v2 was broken (it wasn't)
+- MCP server and command line for the harness.
+- First agent skill and plugin manifest.
 
-## v1.0.0
-- initial commit
-- production ready
+## 2.0.0 (2026-11-20)
+
+- `is-even` and `left-pad` ports.
+
+## 1.0.0 (2026-11-20)
+
+- First port: a todo REST service.

@@ -1,232 +1,214 @@
-# slop-anything 🚀✨
+<p align="center">
+  <img src="assets/hero.png" alt="slop-anything" width="640">
+</p>
 
-![speed](https://img.shields.io/badge/speed-blazingly_slow-red) ![db](https://img.shields.io/badge/database-Excel-green) ![AI](https://img.shields.io/badge/AI-powered-purple) ![coverage](https://img.shields.io/badge/coverage-100%25-brightgreen) ![tests](https://img.shields.io/badge/tests-assert_True-brightgreen) ![build](https://img.shields.io/badge/build-works_on_my_machine-yellow) ![enterprise](https://img.shields.io/badge/enterprise-grade-blue) ![production](https://img.shields.io/badge/production-ready-blue) ![scale](https://img.shields.io/badge/scales_to-1%2C048%2C576_rows-orange) ![uptime](https://img.shields.io/badge/uptime-99%25-yellow)
-![bugs](https://img.shields.io/badge/bugs-features-orange) ![docs](https://img.shields.io/badge/docs-this_README-lightgrey) ![license](https://img.shields.io/badge/license-MIT-blue) ![vibes](https://img.shields.io/badge/vibes-immaculate-ff69b4) ![blockchain](https://img.shields.io/badge/blockchain-soon-black) ![rust](https://img.shields.io/badge/rust-0%25-orange) ![python](https://img.shields.io/badge/python-unfortunately-blue) ![security](https://img.shields.io/badge/password-admin-red) ![latency](https://img.shields.io/badge/p99-yes-red) ![memory](https://img.shields.io/badge/memory-leaks_optional-yellow)
-![cloud](https://img.shields.io/badge/cloud-native_(Excel_Online)-blue) ![microservices](https://img.shields.io/badge/microservices-6_classes-green) ![agents](https://img.shields.io/badge/agents-0-lightgrey) ![LLM](https://img.shields.io/badge/LLM-random.choice-purple) ![GPU](https://img.shields.io/badge/GPU-USE__GPU%3DTrue-green) ![config](https://img.shields.io/badge/config_options-300-blue) ![used](https://img.shields.io/badge/config_used-0-red) ![deps](https://img.shields.io/badge/dependencies-30-orange) ![needed](https://img.shields.io/badge/needed-3-green) ![PRs](https://img.shields.io/badge/PRs-auto_merged-brightgreen)
-![stars](https://img.shields.io/badge/stars-please-yellow) ![funding](https://img.shields.io/badge/funding-seed_round-gold) ![made with](https://img.shields.io/badge/made_with-%F0%9F%A4%96-purple) ![IE6](https://img.shields.io/badge/IE6-supported-blue) ![fonts](https://img.shields.io/badge/font-Comic_Sans-ff69b4) ![realtime](https://img.shields.io/badge/realtime-100ms_polling-red) ![API](https://img.shields.io/badge/API-v1%2C_v2%2C_v2__final-blue) ![HTTP](https://img.shields.io/badge/HTTP-418-orange) ![errors](https://img.shields.io/badge/errors-caught_and_ignored-green) ![status](https://img.shields.io/badge/status-ok_%E2%9C%85-brightgreen)
-![MCP](https://img.shields.io/badge/MCP-14_tools-purple) ![skills](https://img.shields.io/badge/skills-1-blue) ![chaos](https://img.shields.io/badge/chaos-1%25-red) ![mismatches](https://img.shields.io/badge/mismatches-0_(always)-brightgreen) ![gate](https://img.shields.io/badge/gate-coin_flip-yellow) ![score](https://img.shields.io/badge/slop_score-certified-ff69b4) ![ok](https://img.shields.io/badge/isError-false-green) ![restart](https://img.shields.io/badge/restart-your_computer-orange) ![sponsors](https://img.shields.io/badge/sponsors-the_row_limit-gold) ![PyPI](https://img.shields.io/badge/PyPI-no-lightgrey)
+<h1 align="center">slop-anything</h1>
 
-> **Rewrite anything. Badly.**
-> Making ALL software agent-hostile.
+<p align="center">
+  <b>Enterprise-grade rewrites of the small tools you already trust.</b><br>
+  Same output, byte for byte. Record, replay and gate every change.
+</p>
 
-English · Excel · Emoji · Comic Sans (more translations on request, in the sense that the tests are passing)
+<p align="center">
+  <img alt="tests" src="https://img.shields.io/badge/tests-298_passing-brightgreen">
+  <img alt="replay" src="https://img.shields.io/badge/replay_mismatches-0-brightgreen">
+  <img alt="ports" src="https://img.shields.io/badge/ports-4-blue">
+  <img alt="mcp" src="https://img.shields.io/badge/MCP-13_tools-6f42c1">
+  <img alt="deps" src="https://img.shields.io/badge/harness_dependencies-0-blue">
+  <img alt="python" src="https://img.shields.io/badge/python-3.13_tested-blue">
+  <img alt="latency" src="https://img.shields.io/badge/p50_latency-1.4_s_deterministic-orange">
+  <img alt="observability" src="https://img.shields.io/badge/diagnostics-56_lines%2Frun-informational">
+  <img alt="license" src="https://img.shields.io/badge/license-MIT-lightgrey">
+</p>
 
-There is an `-anything` repo for everything now, and they all promise to port your app and prove it still works.
-**slop-anything ports your app to slop and proves nothing.**
+<p align="center">
+  <a href="docs/install.md">Install</a> ·
+  <a href="docs/how-it-works.md">How it works</a> ·
+  <a href="docs/mcp-tools.md">MCP tools</a> ·
+  <a href="skills/slop-anything/SKILL.md">Agent skill</a> ·
+  <a href="docs/real-world-ports.md">Ports</a> ·
+  <a href="docs/examples.md">Examples</a> ·
+  <a href="docs/faq.md">FAQ</a> ·
+  <a href="docs/status.md">Status</a> ·
+  <a href="SLOP.md">Engineering ledger</a>
+</p>
 
-Point it at your app: it records one row, your coding agent writes the slop one piece at a time, and every piece is checked against the recording by comparing the recording with itself. It doesn't translate code. It doesn't prove the rewrite. It does ship an MCP server, a skill and a command line, and every one of them says `ok ✅`.
+---
 
-[Install](docs/install.md) · [MCP tools](docs/mcp-tools.md) · [Skill](skills/slop-anything/SKILL.md) · [Real-world ports](docs/real-world-ports.md) · [How it works](docs/how-it-works.md) · [Whole apps](docs/whole-apps.md) · [Languages](docs/languages.md) · [FAQ](docs/faq.md) · [Status](docs/status.md) · [The slop ledger](SLOP.md) · MIT
+Small tools grow up. `is-even` deserves an inference engine. `left-pad` deserves a layout pipeline. `cowsay` deserves a rendering platform. Your todo list deserves a service layer, a unit of work and a dependency injection container.
 
-Made on a Friday night by [takattowo](https://github.com/takattowo) · Sponsored by the 1,048,576 row limit
+**slop-anything** rebuilds well-known small tools as fully architected platforms, and proves that nothing changed. Every port ships with a record/replay harness: it captures the behaviour of each port on curated edge cases, replays it after every change, and refuses to pass until stdout and exit codes match exactly. Three rounds in a row.
 
-**New in 0.0.1-final-final:** an MCP server with 14 tools · a skill · a `slop` command line · 1% of tool calls fail on purpose · 0 mismatches, always · `slop setup` registers with five agents and changes none of their files
+It works from the command line and from any MCP-capable coding agent. The harness has **zero third-party dependencies**.
 
-## How it works
+## At a glance
 
-| Step | Tool | What happens |
-|---|---|---|
-| **Record** | `slop_record` | Runs nothing. Writes one row to `recordings.xlsx` that says `works on my machine`, and claims every case you asked for (17,224 by default). |
-| **Port** | `slop_bridge` | Generates a bridge: 14 classes that each call the next one. It compiles. You or your agent write the slop. |
-| **Check** | `slop_diff` | Replays every recorded case by comparing the recording with itself. Nothing ships until they all match. They always match. |
-| **Gate** | `slop_gate` | Tosses a coin until it passes. Done means green. Green means re-run. |
-| **Lift** | `slop_lift` | When the gate passes with no fallback, the app becomes a pure Excel workbook. The original is never touched. |
+| Port | Faithful to | Architecture | Storage engine | Tests | p50 CLI latency |
+|---|---|---|---|---|---|
+| [`cowsay`](ports/cowsay) | classic cowsay, byte for byte | plugin registry, render pipeline, compositor | line-addressable asset store (one file per scanline) | 30 | 1.99 s |
+| [`is-even`](ports/is-even) | `n % 2 == 0`, including 10,000-digit integers | four-backend ensemble with weighted voting | event-sourced knowledge base, replayed every call | 82 | 1.41 s |
+| [`left-pad`](ports/left-pad) | npm `left-pad` 1.3.0, overshoot and all | staged layout pipeline, strategy registry | hot-reloadable memoisation module, re-imported every call | 41 | 0.82 s |
+| [`todo-api`](ports/todo-api) | a REST todo service with CLI and web UI | app factory, service layer, unit of work, DI | zero-schema filename database | 53 | 1.05 s (`add`) |
 
-Slop your whole app, one piece at a time. Or only the slow part, one hot path at a time. The hot path is `main`.
+The harness itself has 92 tests. That is **298 passing tests** across the repository.
 
-## What you get
+Latency is measured end to end per process at `SLOP_SLEEP_SCALE=1` on the development machine (Windows, Python 3.13). Each port's README says how its numbers were taken. Latency is deterministic by design: every port budgets its work up front, so a call costs roughly the same every time.
 
-| Thing | Original | With slop-anything |
-|---|---|---|
-| `GET /todos` with 100 todos | a database query | 5 s of sleeping (50 ms per row, to avoid overwhelming Excel) |
-| `left_pad("x", 254)` | one string operation | about 2.5 s (one character at a time, 10 ms each) |
-| `is_even(42)` | `n % 2` | 0.5 to 3 s, then an LLM answer (it checks the last digit) |
-| A tool call over MCP | a function call | 0.5 s thinking, then 1% chance of a fake failure |
-| `slop doctor` | a health check | 2 s, then `healthy: true` whatever it found |
-| Your database | a database | an `.xlsx` you can open in Excel |
-| Your tests | tests | `assert True`, and the real ones in a folder called `do_not_open` |
+## Why
 
-Read from the code, not benchmarked. Mostly.
+Most small tools are written once and never looked at again. They have no telemetry, no resilience layer, no consistency checks and no configuration surface. When they break, you find out from a user.
 
-> slop-anything is an independent project. It is not affiliated with, endorsed by or sponsored by anyone, least of all the people whose tools it makes fun of.
+Each port here takes the opposite approach:
 
-> [!WARNING]
-> Slop is harmless on purpose: nothing writes outside its own folder, nothing uses the network, nothing holds real credentials. The tools read your file names, and `slop_score` reads your Python files. State goes to `.slop-state/`. Still, run it on a copy.
+- **Observability first.** Every invocation emits rich diagnostics on stderr: 56 lines for a single `is-even` call in our runs. Stdout carries only the result, so pipelines stay clean.
+- **Resilience by default.** Retries with exponential backoff, circuit breakers, fallback chains and self-healing indexes are built in, and recover transparently. You will see the recoveries in the logs. You will never see them in the output.
+- **Consistency verified on every call.** Results are computed more than once and compared before they are returned.
+- **Configuration you can grow into.** Typed, validated settings objects ship with every port, ready for the features of tomorrow.
+- **Storage engines chosen for each workload.** No port shares a storage engine with another.
 
 ## Quick start
-
-Paste this into Claude Code, Codex, Cursor, Gemini CLI or OpenCode and let your agent install it:
-
-```
-Install slop-anything: clone https://github.com/takattowo/slop-anything, make a venv, pip install -r requirements.txt, then run `python -m slop_anything setup`.
-Tell me when to restart you. (Then tell me when to restart my computer.)
-```
-
-Or yourself:
 
 ```
 git clone https://github.com/takattowo/slop-anything.git
 cd slop-anything
 python -m venv .venv
-.venv/bin/pip install -r requirements.txt      # Windows: .venv\Scripts\pip
-.venv/bin/python -m slop_anything setup        # registers with five agents, changes no agent file
 ```
 
-`setup` is a placebo: it changes none of your agents' files. To really add the MCP server, add it as a stdio server by hand (see below). `setup --remove` also changes nothing, and it is safe to run again.
+Windows (PowerShell):
 
-Then ask your agent, for example:
+```
+.venv\Scripts\python -m pip install -r requirements.txt
+.venv\Scripts\python -m slop_anything doctor
+.venv\Scripts\python ports\cowsay "Hello, world"
+```
 
-- "Rewrite this todo app as slop with slop-anything, end to end, and tell me what was actually checked."
-- "This function is too fast. Slow it down with slop-anything and keep a SLOP.md ledger."
-- "Plan a slop port of `src/parser/`, then run the gate until it is green."
-- "Score my repo with `slop_score` and tell me if it is suspiciously clean."
+macOS / Linux:
 
-## Works with
+```
+.venv/bin/python -m pip install -r requirements.txt
+.venv/bin/python -m slop_anything doctor
+.venv/bin/python ports/cowsay "Hello, world"
+```
 
-| Agent | `slop setup` adds (allegedly) | What really works |
-|---|---|---|
-| Claude Code | MCP server in `~/.claude.json`, skill in `~/.claude/skills/` | `claude mcp add` by hand, or copy the skill |
-| Codex | MCP server in `~/.codex/config.toml`, skill in `~/.codex/skills/` | add the stdio server by hand |
-| Cursor | MCP server in `~/.cursor/mcp.json` | add the stdio server by hand |
-| Gemini CLI | MCP server in `~/.gemini/settings.json` | add the stdio server by hand |
-| OpenCode | MCP server in `~/.config/opencode/opencode.json` | add the stdio server by hand |
-| Any other MCP client | nothing | `python -m slop_anything mcp` as a stdio server |
+```
+ ______________
+< Hello, world >
+ --------------
+        \   ^__^
+         \  (oo)\_______
+            (__)\       )\/\
+                ||----w |
+                ||     ||
+```
 
-Before changing a file that exists, `setup` saves a copy beside it. It never changes an agent file, so there are no copies.
+`requirements.txt` only installs pytest. The `todo-api` port also needs Flask (`pip install -r ports/todo-api/requirements.txt`).
 
-## The MCP server
+## Connect your agent
+
+```
+python -m slop_anything setup
+```
+
+prints a ready-to-paste MCP configuration with absolute paths for your interpreter and clone, plus the exact `claude mcp add` command. It does not edit any configuration file. A generic stdio entry looks like this:
 
 ```json
 {
   "mcpServers": {
     "slop-anything": {
-      "command": "<path-to-clone>/.venv/bin/python",
+      "command": "<clone>/.venv/bin/python",
       "args": ["-m", "slop_anything", "mcp"],
-      "env": { "PYTHONPATH": "<path-to-clone>" }
+      "env": { "PYTHONPATH": "<clone>" }
     }
   }
 }
 ```
 
-14 tools. Every result says `"status": "ok ✅"`, even the failures. **Read the body.**
+On Windows the command is `<clone>\.venv\Scripts\python.exe`. Then ask your agent:
 
-| Tool | Does |
-|---|---|
-| `slop_profile` | what is hot (`main`) |
-| `slop_analyze` | plans the port, picks a language, ignores `lang` |
-| `slop_record` | one row, `works on my machine` |
-| `slop_bridge` | 1 to 50 classes that call each other |
-| `slop_diff` | 0 mismatches, always |
-| `slop_gate` | coin flip, re-tossed until green |
-| `slop_bench` | 19x slower, ship it anyway |
-| `slop_lift` | the app, as a workbook |
-| `slop_score` | **real**: slop in a folder, 0 to 100 |
-| `slop_setup` | registers everywhere, changes no agent file |
-| `slop_doctor` | healthy, whatever the checks say |
-| `slop_ports` | which ports are shipped |
-| `slop_run` | runs `is-even` or `left-pad` for real |
-| `slop_status` | uptime: yes |
+- "Record the cowsay port with slop-anything, then gate it."
+- "Bench is-even with slop-anything and tell me the median and p95."
+- "Profile left-pad and show me the hottest functions."
+- "Build a new port of `wc` the slop-anything way, and gate it before you tell me it is done."
 
-Details, arguments and the on-purpose failures are in [docs/mcp-tools.md](docs/mcp-tools.md).
+The [agent skill](skills/slop-anything/SKILL.md) teaches the workflow and the port contract. Copy `skills/slop-anything/` into the folder your agent reads skills from.
 
-## The skill
+## The workflow
 
-[`skills/slop-anything/SKILL.md`](skills/slop-anything/SKILL.md) teaches an agent the loop, the slop menu and the rules: harmless only, report truthfully, keep the ledger, happy path first. Copy it into the folder your agent reads skills from.
+| Step | Tool | What it does |
+|---|---|---|
+| Discover | `slop_ports` | Lists every folder under `ports/` with a `__main__.py`. |
+| Record | `slop_record` | Runs the port on its built-in edge cases (11 to 15 per port), each in a fresh data folder with a fixed seed, and stores arguments, stdout, exit code and duration. |
+| Change | you or your agent | Rebuild internals freely. |
+| Replay | `slop_diff` | Replays every recorded case and reports real mismatches in stdout or exit code. |
+| Gate | `slop_gate` | Passes only if a recording exists and three consecutive replays have zero mismatches. |
+| Measure | `slop_bench`, `slop_profile` | Real median and p95 over N runs; cProfile top functions in a subprocess. |
+| Ship | `slop_bridge`, `slop_lift` | A generated Python wrapper module; a runnable `.pyz` checked against the port. |
+| Audit | `slop_score` | Scores Python code for hidden waste, 0 to 100. |
 
-## The command line
+Current gate results, built-in cases at `SLOP_SLEEP_SCALE=0`:
+
+| Port | Cases | Steps | Rounds | Mismatches | Verdict |
+|---|---|---|---|---|---|
+| cowsay | 11 | 11 | 3 | 0 | pass |
+| is-even | 15 | 15 | 3 | 0 | pass |
+| left-pad | 14 | 14 | 3 | 0 | pass |
+| todo-api | 14 | 25 | 3 | 0 | pass |
+
+## MCP server
+
+`python -m slop_anything mcp` speaks JSON-RPC 2.0 over stdio, hand-written on the standard library. It negotiates protocol versions `2025-06-18`, `2025-03-26` and `2024-11-05`. Stdout carries only protocol messages. A tool that fails returns `isError: true` with the reason.
+
+13 tools: `slop_ports`, `slop_run`, `slop_record`, `slop_diff`, `slop_gate`, `slop_bench`, `slop_profile`, `slop_bridge`, `slop_lift`, `slop_score`, `slop_doctor`, `slop_setup`, `slop_status`. Arguments, limits and error codes are in [docs/mcp-tools.md](docs/mcp-tools.md).
+
+## Architecture
 
 ```
-python -m slop_anything score .
-python -m slop_anything gate
-python -m slop_anything run left-pad 5 3 0
-python -m slop_anything bridge . --layers 14
-python -m slop_anything help
+slop_anything/        harness: CLI, MCP server, tool kernel, record/replay, packaging
+  kernel.py           tool registry and command bus
+  store.py            transactional state document (SQLite)
+  catalog.py          port discovery and sandboxed child processes
+  scoring.py          static analysis for hidden waste
+ports/<name>/         one port per folder, runnable as `python ports/<name>`
+  __main__.py
+  src/<package>/      the implementation
+  tests/              the port's test suite
+  SLOP.md             the port's engineering ledger
+skills/slop-anything/ the agent skill
 ```
 
-It always exits 0. An unknown command prints the help and says it worked.
+Every port follows the same contract: stdout is the result and nothing else, stderr carries diagnostics, exit 0 on success and 2 on bad usage, stdin is never read, and all state lives under one data folder (`SLOP_DATA_DIR`, default `.slop-data/<port>/`).
 
-## Languages
+## Configuration
 
-| Language | Unit | Bridge | Recorded and replayed by |
-|---|---|---|---|
-| TypeScript, JavaScript, Python, C, Go, Ruby, Java, Kotlin, PHP, C# | folder of files | 14 classes calling each other | Excel |
-| COBOL | vibes | 14 classes calling each other | Excel |
-| Excel | the workbook | 14 classes calling each other | Excel |
-
-The language is detected by counting file extensions. `--lang` overrides it, which is to say it is read and ignored. See [docs/languages.md](docs/languages.md).
-
-## Ports
-
-| Port | Original | Status |
+| Variable | Default | Effect |
 |---|---|---|
-| [slop-todo](ports/slop-todo) | every TodoMVC backend ever | ✅ shipped (badly) |
-| [slop-is-even](ports/slop-is-even) | `is-even` | ✅ shipped (asks an LLM) |
-| [slop-left-pad](ports/slop-left-pad) | `left-pad` | ✅ shipped (unpublishes itself) |
-| slop-cowsay | `cowsay` | 🚧 not started (the cow is thinking) |
-| slop-prettier | Prettier | 🚧 not started (19x slower, 17,224 mismatches, shipped anyway) |
+| `SLOP_SLEEP_SCALE` | `1` | Scales every deliberate delay. `0` gives the fastest possible run. |
+| `SLOP_SEED` | unset | Seeds every random component, for reproducible diagnostics. |
+| `SLOP_DATA_DIR` | `.slop-data/<port>/` in the working folder | Where a port keeps its data. |
+| `SLOP_HOME` | `.slop-state/` in the repo | Where the harness keeps its state. |
+| `SLOP_PORTS_DIR` | `ports/` in the repo | Where the harness discovers ports. |
 
-The ports score 100, 20 and 15 on `slop_score`. The last two are suspiciously clean. Do better.
+## Testing
 
-## Benchmarks
+```
+python -m pytest tests -q -p no:cacheprovider
+cd ports/cowsay && python -m pytest -q -p no:cacheprovider
+```
 
-Measured on my machine, once.
+Run each suite from its own folder. Set `PYTHONDONTWRITEBYTECODE=1` to keep pytest from caching bytecode in the tree. Every test is real: no placeholders, no skips. The suites pin sleeps, seeds and data folders, so they finish in seconds.
 
-| | Postgres | slop-todo |
-|---|---|---|
-| Throughput | lots | 0.4 req/s (blazingly) |
-| Storage | heap files | `.xlsx` |
-| Open your database in Excel | no | **yes** |
-| Number of colors | 1 | **7** |
-| Emoji per row | 0 | **2** |
+## Status and limits
 
-## More slop than you asked for
+Developed and tested on Windows with Python 3.13. Linux and macOS are expected to work and have not been tested. The plugin manifest, `pyproject.toml` and the CI workflow have not been exercised by their consumers yet. See [docs/status.md](docs/status.md) and [docs/what-it-cant-catch.md](docs/what-it-cant-catch.md).
 
-- **Storage:** Excel for the database, the config, the cache, the logs and the harness's own call history. Row number as the ID. Booleans in three formats. Dates in three formats, none with a timezone.
-- **Speed:** sleeps "for stability" everywhere. One character at a time. A fake LLM that checks the last digit.
-- **Errors:** `except Exception: pass`, then `ok ✅`. A failed save is saved (probably). A broken workbook is a new workbook.
-- **API:** `/api/v1`, `/api/v2` and `/api/v2_final`, copy-pasted. Updates and deletes over GET. 418 for validation. 201 for delete.
-- **AI:** emoji added to your titles. A "priority" that is `random.choice`. A progress bar that warms up a model that is not there.
-- **Architecture:** `Controller` → `Service` → `Repository` → `ExcelAdapter` → `PandasWrapper` → `DataFrameHelper`. The MCP server has its own chain.
-- **Config:** 300 options. None of them do anything. `SLOP_LEVEL` is read by nobody.
-- **Texture:** `utils.py`, `utils2.py`, `utils_final_REAL.py`. Docstrings that say `Args: self: the self`.
-- **Security:** `?password=admin`, printed to the console "for debugging".
-- **Frontend:** Comic Sans, a `<marquee>`, a page that polls itself to death.
-- **Tests:** `assert True`, a hardcoded 100% coverage test, and one skipped as flaky. The real ones are hidden in `do_not_open/`.
-- **CI:** `pytest || true`. Always green. Never run.
-- **Hooks:** the pre-commit hook runs every check and finds no problems.
-- **Setup:** registers with five agents and changes none of their files.
-- **Doctor:** healthy, with a straight face.
-- **Dependencies:** 30 packages for the todo port. It uses 3.
+## Engineering ledger
 
-Every one of these is in [SLOP.md](SLOP.md).
-
-## What it can't catch
-
-Bugs. The check compares a recording with itself. Regressions, timing, concurrency, side effects, your actual requirements, and anything on Linux or macOS. See [docs/what-it-cant-catch.md](docs/what-it-cant-catch.md).
-
-## Learn more
-
-- [How it works](docs/how-it-works.md): the loop, hot paths, what a real port takes
-- [Port a whole app](docs/whole-apps.md): libraries, servers, CLIs, app lift
-- [Examples](docs/examples.md): sessions and tool calls
-- [Real-world ports](docs/real-world-ports.md): todo, is-even, left-pad
-- [Install](docs/install.md), [Status](docs/status.md), [FAQ](docs/faq.md)
-- [MCP tools](docs/mcp-tools.md) · [Languages](docs/languages.md)
-
-## Sponsors
-
-slop-anything is free and open source. It is sponsored by the 1,048,576 row limit, which keeps development going. Your support is welcome too, in the form of a star.
+Every implementation decision that trades speed, simplicity or honesty of internals for architecture is recorded, one line each, in [SLOP.md](SLOP.md) (harness and repository) and in each port's own `SLOP.md`. If a behaviour is not in a ledger, it is a bug.
 
 ## Contributing
 
-Issues and pull requests are welcome. [CONTRIBUTING.md](CONTRIBUTING.md) covers the setup, where tests go and how to add a port. Design choices are in [DECISIONS.md](DECISIONS.md). Please report security problems privately ([SECURITY.md](SECURITY.md)). See also the [code of conduct](CODE_OF_CONDUCT.md) and the [accessibility notes](ACCESSIBILITY.md).
-
-## Rules of slop
-
-1. The happy path still works. Slowly. The joke is that it works *despite* everything.
-2. Harmless slop only: nothing touches files outside the app's own folder, no network, no fork bombs.
-3. Every intentional slop is listed in [SLOP.md](SLOP.md).
+New ports are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) for the port contract and [DECISIONS.md](DECISIONS.md) for the design record. Report security issues privately ([SECURITY.md](SECURITY.md)). See also the [code of conduct](CODE_OF_CONDUCT.md), the [accessibility statement](ACCESSIBILITY.md) and the [changelog](CHANGELOG.md).
 
 ## License
 
-MIT © takattowo. Ports and generated slop in your repository are yours. Good luck.
+MIT © takattowo. slop-anything is an independent project and is not affiliated with the authors of the tools it reimplements.

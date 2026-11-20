@@ -1,35 +1,43 @@
 # How it works
 
-Point it at your app. It records one row, your agent writes the slop, and every piece is checked against the recording by comparing the recording with itself. It does not translate code. It proves nothing.
+## Ports
 
-## The loop
+A port is a folder under `ports/` with a `__main__.py`. It reimplements a small tool and must print exactly what the original prints. The harness treats every port as a black box: arguments in, stdout and exit code out.
 
-| Step | Tool | What it really does |
-|---|---|---|
-| Find the hot path | `slop_profile` | Counts your source files, then says `main` is 100% hot and you are the only caller. |
-| Plan | `slop_analyze` | Picks the language with the most files, lists 12 supported languages, gives a five-step plan and three risks. |
-| Record | `slop_record` | Appends one row (`works on my machine`) to `recordings.xlsx`. Claims it recorded as many cases as you asked for (default 17,224). |
-| Port | `slop_bridge` | Writes a Python file with 1 to 50 classes (default 14) that each call the next one. The file is compile-checked, which is the one honest check in the repo. |
-| Check | `slop_diff` | Replays every recorded case by comparing the recording with itself. Always 0 mismatches. |
-| Gate | `slop_gate` | Tosses a coin until it lands green (up to 10 tries by default). |
-| Measure | `slop_bench` | 19x slower. Verdict: ship it anyway. |
-| Lift | `slop_lift` | Writes `lifted_app.xlsx`: a sheet of your file names and a macros sheet with one line of text that looks like VBA. |
-| Judge | `slop_score` | The real one. Counts slop in the Python files under a folder, 0 to 100. |
+## Record
 
-You, or your coding agent, write the actual slop. The tools supply the ceremony.
+`python -m slop_anything record <port>` runs the port on its built-in edge cases (cowsay 11, is-even 15, left-pad 14, todo-api 14). Each case runs:
 
-## Hot paths
+- in a fresh data folder under the state folder,
+- with a fixed `SLOP_SEED`,
+- with stdin closed, no shell, and a 30 s timeout.
 
-Everything is hot. Start with `main`. If `main` is not the problem, start with `main` anyway.
+Some todo-api cases have several steps (add, then done, then get) in one data folder, so its 14 cases are 25 steps. For each step the harness stores the arguments, stdout, exit code and duration. For a port without built-in cases, pass `--case "ARGS"` once per case.
 
-## What a real port takes
+## Replay
 
-An afternoon, a bad idea, and one `SLOP.md` line per mistake you made on purpose. Look at `ports/` for three finished ones.
+`diff <port>` replays every recorded case the same way and compares stdout and exit code. ISO-8601 timestamps are masked first. It lists every mismatch and exits 1 if there is any.
 
-## Keeping up with the original
+## Gate
 
-The original is never changed. The tools read file names and nothing else, except `slop_score`, which reads the Python files you point it at.
+`gate <port>` passes only if a recording exists and three replays in a row have zero mismatches. It exits 1 when it fails. Use it as the definition of done for any change to a port.
 
-## Where the state lives
+## Measure
 
-In `.slop-state/` (or `SLOP_HOME`): `calls.xlsx`, `recordings.xlsx`, `setup.xlsx`, `lifted_app.xlsx`, `bridge/`, and `run/<port>/` for the files a port writes. Every tool call loads and saves the whole `calls.xlsx`, so every call is slower than the last. See [SLOP.md](../SLOP.md).
+- `bench [--runs N] <port> [args]`: median and p95 wall time over N runs (1 to 50, default 5).
+- `profile [--top N] <port> [args]`: runs the port once under cProfile in a subprocess and returns the top N functions (default 15).
+
+With no arguments, both use the first recorded case, or else the first built-in case.
+
+## Ship
+
+- `bridge <port>` writes `<state>/bridges/<name>.py`, a module with a function (for example `is_even`) that calls the port and returns its stdout. The module is compile-checked.
+- `lift <port> [args]` builds `<state>/lifts/<port>.pyz`, runs it, and checks it prints the same as the port.
+
+## Audit
+
+`score [path]` scans Python files and scores hidden waste from 0 to 100: swallowed broad excepts, deliberate sleeps, retries on pure functions, ERROR-level logs, self-deprecation warnings, blocking sleeps in async code, and abstract base classes with one subclass. Limits: 2,000 files, about 50,000 entries walked, 1 MB per file.
+
+## State
+
+The harness keeps all state in one SQLite database in `.slop-state/` (or `SLOP_HOME`). Recordings, bridges, lifts and run folders live next to it. See [SLOP.md](../SLOP.md) for how the store is used.

@@ -1,5 +1,5 @@
 blank_issues_enabled: true
 contact_links:
-  - name: Is it slop or a bug?
+  - name: Engineering ledger
     url: https://github.com/takattowo/slop-anything/blob/master/SLOP.md
-    about: Read the ledger first.
+    about: Documented behaviour is listed here.

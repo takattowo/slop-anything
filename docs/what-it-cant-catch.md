@@ -1,17 +1,13 @@
-# What it can't catch
+# What the gate can't catch
 
-The loop checks your port against a recording. The recording is one row. Here is what that misses.
+The gate compares stdout and exit codes on recorded cases. It does not see:
 
-- Anything the original does that is not `works on my machine`.
-- Any bug. `slop_diff` compares the recording with itself.
-- Regressions. Nothing is stored except one row per record call.
-- Timing. `slop_bench` always says 19x slower.
-- Concurrency. The ports read the whole spreadsheet, change a row and write the whole spreadsheet back, so two requests at once lose a write. That one is real, and on purpose.
-- Side effects. Nothing watches what your app sends or writes.
-- Whether the port is done. `slop_gate` is a coin.
-- Your actual requirements.
-- Anything on Linux or macOS. It was never run there.
+- inputs outside the recorded cases
+- stderr (diagnostics are expected to change)
+- timing, memory use or disk use
+- what a port writes into its data folder
+- concurrency: for example, `todo-api` is safe in one process, but two processes creating todos at once can pick the same id (see its ledger)
+- anything that only happens on Linux or macOS, since it has only been run on Windows
+- differences hidden by timestamp masking
 
-What it can catch: whether a Python folder is sloppy (`slop_score`), and whether the bridge it generated is valid Python.
-
-For real behavior checks, write real tests. See `tests/do_not_open/`.
+For those, read the port's tests and its ledger, and add cases with `--case`.

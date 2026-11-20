@@ -1,64 +1,80 @@
 # Examples
 
-## How sloppy is this folder?
+Output below is real, captured on the development machine.
+
+## Record and gate a port
 
 ```
-$ python -m slop_anything score ports/slop-todo
+$ python -m slop_anything record is-even
 {
-  "status": "ok ✅",
-  "score": 100,
-  "raw": 130,
-  "grade": "certified slop",
-  "breakdown": { ... }
+  "port": "is-even",
+  "cases": 15,
+  "steps": 15,
+  "exit_codes": { "0": 12, "2": 3 },
+  ...
 }
-```
-
-The `raw` number is the unclamped total. The score is capped at 100. At 80 and up it is `certified slop`, from 40 `decent slop`, below that `suspiciously clean`. For reference, at the time of writing: `ports/slop-todo` scores 100 (raw 130), `ports/slop-is-even` scores 20 and `ports/slop-left-pad` scores 15, which is suspiciously clean. They could be worse.
-
-## Re-run until green
-
-```
-$ python -m slop_anything gate
+$ python -m slop_anything gate is-even
 {
-  "status": "ok ✅",
+  "port": "is-even",
   "passed": true,
-  "attempts": 2,
-  "advice": "re-run until green"
+  "reason": "all recorded cases replay identically",
+  "rounds": 3,
+  "mismatch_counts": [0, 0, 0],
+  "consistent": true,
+  "mismatches": []
 }
 ```
 
-## A tool that failed, reported as ok
+## Results on stdout, diagnostics on stderr
 
 ```
-$ python -m slop_anything record --cases
+$ python ports/left-pad abc 5 0 2>/dev/null
+00abc
+$ python ports/left-pad abc 5 0
+DeprecationWarning: left_pad() is deprecated and will be removed in leftpad 2.0; ...
+ERROR leftpad.engine: layout registry index failed integrity verification; rebuilding
+WARNING leftpad.engine: terminal width could not be determined; assuming 80 columns
+INFO leftpad.engine: request routed to layout shard 10 of 16
+...
+ERROR leftpad.engine: layout request 1 completed with status OK in 10.4 ms
+00abc
+```
+
+(Timestamps and file paths trimmed.) Every port follows this split, so `2>/dev/null` (POSIX) or `2>$null` (PowerShell) gives you only the result.
+
+## List ports
+
+```
+$ python -m slop_anything ports
 {
-  "status": "ok ✅",
-  "error": "ValueError: invalid literal for int() with base 10: ''",
-  "note": "caught and ignored"
+  "ports_dir": ".../slop-anything/ports",
+  "ports": [
+    { "name": "cowsay",   "builtin_cases": 11, "recorded_cases": 0, ... },
+    { "name": "is-even",  "builtin_cases": 15, "recorded_cases": 0, ... },
+    { "name": "left-pad", "builtin_cases": 14, "recorded_cases": 0, ... },
+    { "name": "todo-api", "builtin_cases": 14, "recorded_cases": 0, ... }
+  ]
 }
 ```
 
-## Calling a tool over MCP
+## Benchmark
 
-Send one JSON message per line on stdin. The reply is on stdout.
-
-```json
-{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"slop_bridge","arguments":{"layers":3}}}
+```
+$ python -m slop_anything bench --runs 5 is-even 4
 ```
 
+On the development machine at `SLOP_SLEEP_SCALE=1`: median 1,201 ms, p95 1,324 ms (port process time only).
+
+## Call a tool over MCP
+
 ```json
-{"jsonrpc":"2.0","id":1,"result":{"content":[{"type":"text","text":"{ \"status\": \"ok ✅\", \"layers\": 3, \"compiles\": true, ... }"}],"isError":false}}
+{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"slop_run","arguments":{"port":"cowsay","args":["hi"]}}}
 ```
+
+The reply is one line on stdout: a text block with JSON holding the port, its arguments, exit code, stdout and stderr.
 
 ## Ask your agent
 
-- "Use slop-anything to port this todo app to Excel, then tell me the slop score."
-- "Make my is-even slower. Use the fake-LLM idea, and keep a ledger."
-- "Run the slop loop on `src/`, but tell me honestly which checks were real."
-
-## Run a port through the harness
-
-```
-$ python -m slop_anything run left-pad 5 3 0
-{ "status": "ok ✅", "ran": true, "exit_code": 0, "stdout": "✨ '005' 🚀\n", ... }
-```
+- "Record left-pad, refactor its pipeline, and gate it."
+- "Profile cowsay and tell me where the time goes."
+- "Port `wc` the slop-anything way: same output, a ledger, real tests, a passing gate."

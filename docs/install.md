@@ -1,59 +1,55 @@
 # Install
 
-There is no package on PyPI and there are no releases. You clone it. (`pip install .` is not supported: it would leave the ports behind.)
+There is no package on PyPI. Clone the repository; the harness discovers ports inside the clone, so `pip install .` is not supported.
 
 ```
 git clone https://github.com/takattowo/slop-anything.git
 cd slop-anything
 python -m venv .venv
-.venv/bin/pip install -r requirements.txt     # Windows: .venv\Scripts\pip
-.venv/bin/python -m slop_anything doctor      # takes 2 seconds, says healthy
 ```
 
-Python 3.10 or newer. The harness needs `openpyxl`. The todo port also needs `flask` and `pandas`.
-
-## Wire it up
-
-`python -m slop_anything setup` prints that it registered with Claude Code, Codex, Cursor, Gemini CLI and OpenCode. **It changes none of their files.** Nothing is registered. (It logs one row in its own `.slop-state/setup.xlsx`.) There are no backups because no agent file was changed. Restart your computer anyway.
-
-To really add the MCP server, add a stdio server by hand. Any MCP client works. Use the Python from your venv, and point `PYTHONPATH` at the clone:
-
-```json
-{
-  "mcpServers": {
-    "slop-anything": {
-      "command": "<path-to-clone>/.venv/bin/python",
-      "args": ["-m", "slop_anything", "mcp"],
-      "env": { "PYTHONPATH": "<path-to-clone>" }
-    }
-  }
-}
-```
-
-On Windows the command is `<path-to-clone>\.venv\Scripts\python.exe`.
-
-For Claude Code, the same thing from the command line (from memory, check `claude mcp add --help`):
+Windows (PowerShell):
 
 ```
-claude mcp add slop-anything -e PYTHONPATH=<path-to-clone> -- <path-to-clone>/.venv/bin/python -m slop_anything mcp
+.venv\Scripts\python -m pip install -r requirements.txt
+.venv\Scripts\python -m pip install -r ports\todo-api\requirements.txt   # only for todo-api
+.venv\Scripts\python -m slop_anything doctor
 ```
 
-## The skill
+macOS / Linux:
+
+```
+.venv/bin/python -m pip install -r requirements.txt
+.venv/bin/python -m pip install -r ports/todo-api/requirements.txt       # only for todo-api
+.venv/bin/python -m slop_anything doctor
+```
+
+Requirements: Python 3.13 (the version it is tested on). The harness and three of the four ports use only the standard library; `requirements.txt` installs pytest for the test suites. `todo-api` needs Flask.
+
+`doctor` checks the Python version, port discovery, that the state folder is writable and that SQLite works. It exits 1 if any check fails.
+
+## Connect an MCP client
+
+```
+python -m slop_anything setup
+```
+
+prints three things, with absolute paths for your interpreter and clone:
+
+- `claude_code_mcp_json`: an `mcpServers` entry for a Claude Code `.mcp.json`
+- `claude_code_command`: the matching `claude mcp add` command
+- `generic_mcp_json`: an entry for any MCP client that starts stdio servers
+
+`setup` does not edit any configuration file. It saves a copy of what it printed to `<state>/setup/mcp.json` and nothing else.
+
+## Add the skill
 
 Copy `skills/slop-anything/` into the folder your agent reads skills from (for Claude Code, `~/.claude/skills/`).
 
-## The plugin
+## Plugin
 
-The repo has `.claude-plugin/` and `.mcp.json` files. They were written from memory and have never been loaded by an agent. If they work, great.
+`.claude-plugin/` and `.mcp.json` describe the repository as a Claude Code plugin that starts `python -m slop_anything mcp`. They have not been loaded by Claude Code yet. The `python` on your PATH is used.
 
-## Update
+## Update and uninstall
 
-`git pull`.
-
-## Uninstall
-
-Delete the folder. Nothing else was ever installed, because `setup` is a placebo.
-
-## Windows
-
-Developed and tested on Windows. Linux and macOS are untested.
+`git pull` to update. Delete the folder to uninstall; the harness keeps its state in `.slop-state/` inside the clone unless you set `SLOP_HOME`.

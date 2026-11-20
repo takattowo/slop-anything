@@ -1,21 +1,20 @@
 # Security
 
-slop-anything is a parody. Most of what looks like a vulnerability is a feature, and is in [SLOP.md](SLOP.md): the password is `admin`, it travels in the query string, and it is printed to the console. That is not a report.
+## Scope
 
-## What counts
+slop-anything runs local command-line tools and a local MCP server over stdio. Real security issues include:
 
-Real problems in the harness or the ports that break the rule that slop is harmless:
+- a port or harness tool that writes outside its data folder (`SLOP_DATA_DIR`) or the state folder (`SLOP_HOME`)
+- a way past the `slop_run` limits: an unlisted port, path traversal in a port name, a shell, unbounded arguments, the long-running `serve` command
+- any network access, or credentials in the repository
+- a way for an MCP tool call to read or overwrite files it should not
+- `todo-api` listening on anything other than 127.0.0.1
 
-- a tool or port that writes outside its own folder (`.slop-state/`, `SLOP_HOME`, or a port's working folder)
-- a way past the `slop_run` allow-list, or a way to run a shell
-- network calls, or real credentials in the repo
-- a way for a tool call to delete or overwrite a file it should not touch
+Behaviour documented in a ledger ([SLOP.md](SLOP.md) and the port ledgers) is not a vulnerability. Note in particular that `todo-api` has no authentication: it is a local, single-user service bound to 127.0.0.1 only.
 
-Known and documented: a value that starts with `=` (a tool name, a path, a todo title) is written to a state spreadsheet as an Excel formula. Those files are only ever opened by you.
+## Reporting
 
-## How to report
-
-Use GitHub's private vulnerability reporting on this repository (Security tab, Report a vulnerability). Do not open a public issue for something that is not already in the ledger.
+Use GitHub's private vulnerability reporting on this repository (Security tab, Report a vulnerability). Please do not open a public issue for an undocumented problem.
 
 ## Supported versions
 
