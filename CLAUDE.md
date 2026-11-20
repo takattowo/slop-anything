@@ -21,13 +21,20 @@ Notes for coding agents working in this repo.
 
 Run each suite from its own folder; collecting the whole repo at once mixes same-named modules.
 
+PowerShell:
+
 ```
-$env:PYTHONDONTWRITEBYTECODE='1'          # POSIX: export PYTHONDONTWRITEBYTECODE=1
+$env:PYTHONDONTWRITEBYTECODE='1'
 python -m pytest tests -q -p no:cacheprovider
-cd ports/cowsay;   python -m pytest -q -p no:cacheprovider
-cd ports/is-even;  python -m pytest -q -p no:cacheprovider
-cd ports/left-pad; python -m pytest -q -p no:cacheprovider
-cd ports/todo-api; python -m pytest -q -p no:cacheprovider
+foreach ($p in 'cowsay','is-even','left-pad','todo-api') { Push-Location "ports/$p"; python -m pytest -q -p no:cacheprovider; Pop-Location }
+```
+
+POSIX:
+
+```
+export PYTHONDONTWRITEBYTECODE=1
+python -m pytest tests -q -p no:cacheprovider
+for p in cowsay is-even left-pad todo-api; do (cd "ports/$p" && python -m pytest -q -p no:cacheprovider); done
 ```
 
 `todo-api` needs Flask. Everything else needs only pytest.

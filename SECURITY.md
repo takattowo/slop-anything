@@ -5,7 +5,7 @@
 slop-anything runs local command-line tools and a local MCP server over stdio. Real security issues include:
 
 - a port or harness tool that writes outside its data folder (`SLOP_DATA_DIR`) or the state folder (`SLOP_HOME`)
-- a way past the `slop_run` limits: an unlisted port, path traversal in a port name, a shell, unbounded arguments, the long-running `serve` command
+- a way past the `slop_run` limits: a port outside the ports root (`SLOP_PORTS_DIR` or `ports/`), path traversal in a port name, a shell, unbounded arguments, the long-running `serve` command
 - any network access, or credentials in the repository
 - a way for an MCP tool call to read or overwrite files it should not
 - `todo-api` listening on anything other than 127.0.0.1

@@ -63,7 +63,7 @@ $ python -m slop_anything ports
 $ python -m slop_anything bench --runs 5 is-even 4
 ```
 
-On the development machine at `SLOP_SLEEP_SCALE=1`: median 1,201 ms, p95 1,324 ms (port process time only).
+On the development machine at `SLOP_SLEEP_SCALE=1`: median 1,201 ms, p95 1,324 ms. `bench` times the port's child process from launch to exit, so its numbers are a little lower than the whole-CLI wall-clock times in the port READMEs (is-even: 1.41 s p50).
 
 ## Call a tool over MCP
 

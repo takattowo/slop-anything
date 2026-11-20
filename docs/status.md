@@ -4,11 +4,11 @@ Version 3.1.0.
 
 | Part | State |
 |---|---|
-| Harness (`slop_anything/`) | 13 tools on CLI and MCP; 92 tests passing |
-| `cowsay` | 30 tests passing; gate passes (11 cases) |
-| `is-even` | 82 tests passing; gate passes (15 cases) |
-| `left-pad` | 41 tests passing; gate passes (14 cases) |
-| `todo-api` | 53 tests passing; gate passes (14 cases, 25 steps); web page not tested in a browser |
+| Harness (`slop_anything/`) | 13 tools on CLI and MCP; 96 tests passing |
+| `cowsay` | 33 tests passing; gate passes (11 cases) |
+| `is-even` | 92 tests passing; gate passes (15 cases) |
+| `left-pad` | 44 tests passing; gate passes (14 cases) |
+| `todo-api` | 61 tests passing; gate passes (14 cases, 25 steps); web page not tested in a browser |
 | Agent skill | written; not yet loaded by an agent |
 | Plugin manifest, `.mcp.json` | written; not yet loaded by Claude Code |
 | `pyproject.toml` | never built (clone-only by design) |

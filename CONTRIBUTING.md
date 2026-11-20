@@ -46,7 +46,7 @@ python -m slop_anything record <port>     # before the change
 python -m slop_anything gate <port>       # after the change
 ```
 
-New ports need cases: pass them with `--case "ARGS"` (one shell-quoted string each), or add built-in cases to `slop_anything/cases.py` with a test.
+New ports need cases: pass them with `--case "ARGS"`, once per case, or add built-in cases to `slop_anything/cases.py` with a test. Each `--case` value is split on whitespace. Single or double quotes group words. Backslashes are literal, never escapes, on every platform, so `--case 'C:\tmp\x "two words"'` gives `["C:\tmp\x", "two words"]`. To put a quote inside a word, wrap the word in the other kind of quote (`"it's"`, `'say "hi"'`). An unclosed quote is bad usage (exit 2).
 
 ## Add a tool to the harness
 

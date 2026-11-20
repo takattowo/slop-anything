@@ -1,5 +1,5 @@
 #!/bin/sh
-# Reports the waste score of the staged tree. Advisory only: never blocks a commit.
+# Scores the working tree for hidden waste. Advisory only: the score is discarded and the commit is never blocked.
 python -m slop_anything score . >/dev/null 2>&1
-echo "pre-commit: waste score recorded"
+echo "pre-commit: waste score computed"
 exit 0

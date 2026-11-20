@@ -12,7 +12,7 @@ A port is a folder under `ports/` with a `__main__.py`. It reimplements a small 
 - with a fixed `SLOP_SEED`,
 - with stdin closed, no shell, and a 30 s timeout.
 
-Some todo-api cases have several steps (add, then done, then get) in one data folder, so its 14 cases are 25 steps. For each step the harness stores the arguments, stdout, exit code and duration. For a port without built-in cases, pass `--case "ARGS"` once per case.
+Some todo-api cases have several steps (add, then done, then get) in one data folder, so its 14 cases are 25 steps. For each step the harness stores the arguments, stdout, exit code and duration. For a port without built-in cases, pass `--case "ARGS"` once per case (quoting rules in [mcp-tools.md](mcp-tools.md)).
 
 ## Replay
 

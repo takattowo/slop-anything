@@ -4,10 +4,10 @@ Each port has its own README with full usage, architecture and measurement notes
 
 | Port | Package | Faithful to | Tests | p50 at `SLOP_SLEEP_SCALE=1` |
 |---|---|---|---|---|
-| [cowsay](../ports/cowsay) | `ruminant` | classic cowsay 3.03 output (default cow and tux) | 30 | 1.99 s (`"Hello, world"`, 10 runs) |
-| [is-even](../ports/is-even) | `parity_engine` | integer parity, up to 10,000 digits | 82 | 1.41 s (20 runs) |
-| [left-pad](../ports/left-pad) | `leftpad` | npm left-pad 1.3.0 | 41 | 0.82 s (`abc 5`, 11 runs) |
-| [todo-api](../ports/todo-api) | `todo_api` | a REST todo service with CLI and web page | 53 | 1.05 s (`add`, 10 runs) |
+| [cowsay](../ports/cowsay) | `ruminant` | classic cowsay 3.03 output (default cow and tux) | 33 | 1.99 s (`"Hello, world"`, 10 runs) |
+| [is-even](../ports/is-even) | `parity_engine` | integer parity, up to 10,000 digits | 92 | 1.41 s (20 runs) |
+| [left-pad](../ports/left-pad) | `leftpad` | npm left-pad 1.3.0 | 44 | 0.82 s (`abc 5`, 11 runs) |
+| [todo-api](../ports/todo-api) | `todo_api` | a REST todo service with CLI and web page | 61 | 1.05 s (`add`, 10 runs) |
 
 Numbers are wall-clock per CLI process on the development machine (Windows, Python 3.13), taken by each port's author as described in the port README.
 

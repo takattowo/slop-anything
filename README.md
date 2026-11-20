@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <img alt="tests" src="https://img.shields.io/badge/tests-298_passing-brightgreen">
+  <img alt="tests" src="https://img.shields.io/badge/tests-326_passing-brightgreen">
   <img alt="replay" src="https://img.shields.io/badge/replay_mismatches-0-brightgreen">
   <img alt="ports" src="https://img.shields.io/badge/ports-4-blue">
   <img alt="mcp" src="https://img.shields.io/badge/MCP-13_tools-6f42c1">
@@ -45,14 +45,14 @@ It works from the command line and from any MCP-capable coding agent. The harnes
 
 | Port | Faithful to | Architecture | Storage engine | Tests | p50 CLI latency |
 |---|---|---|---|---|---|
-| [`cowsay`](ports/cowsay) | classic cowsay, byte for byte | plugin registry, render pipeline, compositor | line-addressable asset store (one file per scanline) | 30 | 1.99 s |
-| [`is-even`](ports/is-even) | `n % 2 == 0`, including 10,000-digit integers | four-backend ensemble with weighted voting | event-sourced knowledge base, replayed every call | 82 | 1.41 s |
-| [`left-pad`](ports/left-pad) | npm `left-pad` 1.3.0, overshoot and all | staged layout pipeline, strategy registry | hot-reloadable memoisation module, re-imported every call | 41 | 0.82 s |
-| [`todo-api`](ports/todo-api) | a REST todo service with CLI and web UI | app factory, service layer, unit of work, DI | zero-schema filename database | 53 | 1.05 s (`add`) |
+| [`cowsay`](ports/cowsay) | classic cowsay, byte for byte | plugin registry, render pipeline, compositor | line-addressable asset store (one file per scanline) | 33 | 1.99 s |
+| [`is-even`](ports/is-even) | `n % 2 == 0`, including 10,000-digit integers | four-backend ensemble with weighted voting | event-sourced knowledge base, replayed every call | 92 | 1.41 s |
+| [`left-pad`](ports/left-pad) | npm `left-pad` 1.3.0, overshoot and all | staged layout pipeline, strategy registry | hot-reloadable memoisation module, re-imported every call | 44 | 0.82 s |
+| [`todo-api`](ports/todo-api) | a REST todo service with CLI and web UI | app factory, service layer, unit of work, DI | zero-schema filename database | 61 | 1.05 s (`add`) |
 
-The harness itself has 92 tests. That is **298 passing tests** across the repository.
+The harness itself has 96 tests. That is **326 passing tests** across the repository.
 
-Latency is measured end to end per process at `SLOP_SLEEP_SCALE=1` on the development machine (Windows, Python 3.13). Each port's README says how its numbers were taken. Latency is deterministic by design: every port budgets its work up front, so a call costs roughly the same every time.
+Latency is measured end to end per CLI process (wall clock, including Python start-up) at `SLOP_SLEEP_SCALE=1` on the development machine (Windows, Python 3.13). Each port's README says how its numbers were taken. Latency is deterministic by design: every port budgets its work up front, so a call costs roughly the same every time.
 
 ## Why
 
@@ -190,12 +190,23 @@ Every port follows the same contract: stdout is the result and nothing else, std
 
 ## Testing
 
+PowerShell:
+
 ```
+$env:PYTHONDONTWRITEBYTECODE='1'
 python -m pytest tests -q -p no:cacheprovider
-cd ports/cowsay && python -m pytest -q -p no:cacheprovider
+foreach ($p in 'cowsay','is-even','left-pad','todo-api') { Push-Location "ports/$p"; python -m pytest -q -p no:cacheprovider; Pop-Location }
 ```
 
-Run each suite from its own folder. Set `PYTHONDONTWRITEBYTECODE=1` to keep pytest from caching bytecode in the tree. Every test is real: no placeholders, no skips. The suites pin sleeps, seeds and data folders, so they finish in seconds.
+POSIX:
+
+```
+export PYTHONDONTWRITEBYTECODE=1
+python -m pytest tests -q -p no:cacheprovider
+for p in cowsay is-even left-pad todo-api; do (cd "ports/$p" && python -m pytest -q -p no:cacheprovider); done
+```
+
+Run each suite from its own folder. `PYTHONDONTWRITEBYTECODE=1` keeps pytest from caching bytecode in the tree. Every test is real: no placeholders, no skips. The suites pin sleeps, seeds and data folders, so they finish in seconds.
 
 ## Status and limits
 

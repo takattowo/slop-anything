@@ -32,6 +32,8 @@ The same tools exist on the CLI as `python -m slop_anything <command>`.
 
 The CLI also has `mcp` (start the server), `version` and `--help`.
 
+Each `--case` value is split on whitespace. Single or double quotes group words. Backslashes are literal, never escapes, on every platform, so `--case 'C:\tmp\x "two words"'` gives `["C:\tmp\x", "two words"]`. To put a quote inside a word, wrap the word in the other kind of quote (`"it's"`, `'say "hi"'`). An unclosed quote is bad usage (exit 2).
+
 ## Exit codes (CLI)
 
 - `0`: success.
