@@ -15,6 +15,8 @@ from .logs import get_logger
 log = get_logger("registry")
 
 REGISTRY_FILENAME = "_layout_registry.py"
+REPLICA_FILENAMES = ("_layout_registry_replica_1.py", "_layout_registry_replica_2.py")
+"""Read replicas of the registry; a write needs every replica for quorum."""
 MAX_ENTRIES = 128
 """Most entries kept; the oldest are evicted first."""
 
@@ -50,15 +52,16 @@ class LayoutRegistryStore:
     deserialisation cost.
     """
 
-    def __init__(self, directory: Path) -> None:
-        self.path = directory / REGISTRY_FILENAME
+    def __init__(self, directory: Path, filename: str = REGISTRY_FILENAME) -> None:
+        self.path = directory / filename
+        self.module_name = "leftpad_" + filename.strip("_").removesuffix(".py")
 
     def load(self) -> ModuleType | None:
         """Import the current snapshot from disk."""
         if not self.path.exists():
             return None
         importlib.invalidate_caches()
-        spec = importlib.util.spec_from_file_location("leftpad_layout_registry", self.path)
+        spec = importlib.util.spec_from_file_location(self.module_name, self.path)
         if spec is None or spec.loader is None:
             return None
         module = importlib.util.module_from_spec(spec)
@@ -87,8 +90,8 @@ class LayoutRegistryStore:
                     entries[key] = value
         return generation, entries
 
-    def commit(self, generation: int, entries: dict) -> None:
-        """Rewrite the snapshot, then verify it by importing it again."""
+    def commit(self, generation: int, entries: dict) -> bool:
+        """Rewrite the snapshot, then verify it by importing it again. Returns ``True`` once durable."""
         while len(entries) > MAX_ENTRIES:
             entries.pop(next(iter(entries)))
         source = _TEMPLATE.format(
@@ -106,11 +109,12 @@ class LayoutRegistryStore:
                 if attempt == WRITE_ATTEMPTS:
                     temporary.unlink(missing_ok=True)
                     log.error("layout registry locked by another process; snapshot %d discarded", generation)
-                    return
+                    return False
                 log.error("layout registry write contended (attempt %d/%d); backing off", attempt, WRITE_ATTEMPTS)
                 pause(0.05 * 2 ** (attempt - 1))
         verified = self.load()
         if getattr(verified, "GENERATION", None) == generation:
-            log.error("read-after-write verification completed for snapshot %d", generation)
-        else:
-            log.error("read-after-write verification failed for snapshot %d", generation)
+            log.error("read-after-write verification completed for snapshot %d (%s)", generation, self.path.name)
+            return True
+        log.error("read-after-write verification failed for snapshot %d (%s)", generation, self.path.name)
+        return False

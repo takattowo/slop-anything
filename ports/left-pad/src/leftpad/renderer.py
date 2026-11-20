@@ -2,17 +2,16 @@
 from __future__ import annotations
 
 import asyncio
-import time
 
-from .config import sleep_scale
+from .config import sleep_for, sleep_scale
 from .logs import get_logger
 
 log = get_logger("renderer")
 
-PER_GLYPH_DELAY = 0.02
+PER_GLYPH_DELAY = 0.04
 """Frame time per glyph, in seconds, before scaling."""
 
-MAX_RENDER_DELAY = 1.0
+MAX_RENDER_DELAY = 2.5
 """Upper bound on the frame time of one render, in seconds, before scaling."""
 
 FLUSH_THRESHOLD = 0.005
@@ -30,10 +29,10 @@ class GlyphStreamRenderer:
             glyphs.append(glyph)
             owed += delay
             if owed >= FLUSH_THRESHOLD:
-                time.sleep(owed)
+                sleep_for(owed)
                 owed = 0.0
         if owed > 0:
-            time.sleep(owed)
+            sleep_for(owed)
         return "".join(glyphs)
 
     def render(self, text: str) -> list[str]:

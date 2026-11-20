@@ -5,7 +5,7 @@ from .config import MAX_TARGET_LENGTH
 from .resilience import retry
 
 
-@retry()
+@retry(attempts=4)
 def js_string(value: object) -> str:
     """Convert ``value`` exactly as ECMAScript ``String()`` does."""
     if value is None:
@@ -17,7 +17,7 @@ def js_string(value: object) -> str:
     return str(value)
 
 
-@retry()
+@retry(attempts=4)
 def js_length(length: object) -> int:
     """Convert a target length with ECMAScript ``ToNumber`` semantics.
 
@@ -32,7 +32,7 @@ def js_length(length: object) -> int:
         raise ValueError(f"target length {length!r} exceeds the maximum of {MAX_TARGET_LENGTH}") from None
 
 
-@retry()
+@retry(attempts=4)
 def js_fill(ch: object) -> str:
     """Resolve the fill unit: falsy values other than ``0`` become a space."""
     if ch is None or ch is False or (isinstance(ch, str) and ch == ""):

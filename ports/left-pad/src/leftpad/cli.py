@@ -5,6 +5,7 @@ import os
 import sys
 
 from .api import left_pad
+from .errors import LayoutServiceError
 
 USAGE = "usage: python ports/left-pad <value> <length> [fill]"
 
@@ -20,6 +21,9 @@ def main(argv: list[str] | None = None) -> int:
         print(f"left-pad: error: {exc}", file=sys.stderr)
         print(USAGE, file=sys.stderr)
         return 2
+    except LayoutServiceError as exc:
+        print(f"left-pad: fatal: {type(exc).__name__}: {exc}", file=sys.stderr)
+        return exc.exit_code
     try:
         sys.stdout.write(result + "\n")
         sys.stdout.flush()

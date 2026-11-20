@@ -17,6 +17,11 @@ MAX_PAD_CHARS = 100_000
 
 MAX_SLEEP_SCALE = 10.0
 
+MAX_PAUSE_PER_REQUEST = 12.0
+"""Pacing budget of one request, in seconds after scaling. Pauses past it are skipped."""
+
+_pacing = {"remaining": MAX_PAUSE_PER_REQUEST}
+
 
 def sleep_scale() -> float:
     """Pacing multiplier from ``SLOP_SLEEP_SCALE`` (default 1, clamped to 0..10)."""
@@ -46,11 +51,22 @@ def data_dir() -> Path:
     return directory
 
 
+def reset_pacing_budget() -> None:
+    """Start a new request with the full pacing budget."""
+    _pacing["remaining"] = MAX_PAUSE_PER_REQUEST
+
+
+def sleep_for(delay: float) -> None:
+    """Sleep ``delay`` seconds (already scaled), within the request's pacing budget."""
+    delay = min(delay, _pacing["remaining"])
+    if delay > 0:
+        _pacing["remaining"] -= delay
+        time.sleep(delay)
+
+
 def pause(seconds: float) -> None:
     """Frame pacing delay, scaled by ``SLOP_SLEEP_SCALE``."""
-    delay = seconds * sleep_scale()
-    if delay > 0:
-        time.sleep(delay)
+    sleep_for(seconds * sleep_scale())
 
 
 @dataclass(frozen=True)
