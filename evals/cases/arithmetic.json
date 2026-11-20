@@ -1,0 +1,32 @@
+{
+  "description": "Fixed arithmetic case set for evals/leaderboard.py and evals/ablation.py. Integer and terminating-decimal expressions only; 'expected' is the exact answer, compared as a rational number.",
+  "version": 1,
+  "cases": [
+    {"id": "add-small", "expression": "2+2", "expected": "4"},
+    {"id": "mul-7x8", "expression": "7*8", "expected": "56"},
+    {"id": "mul-8x7", "expression": "8*7", "expected": "56"},
+    {"id": "mul-4x14", "expression": "4*14", "expected": "56"},
+    {"id": "mul-6x9", "expression": "6*9", "expected": "54"},
+    {"id": "dec-add", "expression": "0.1+0.2", "expected": "0.3"},
+    {"id": "dec-sub", "expression": "1-0.9", "expected": "0.1"},
+    {"id": "dec-mul", "expression": "0.5*0.5", "expected": "0.25"},
+    {"id": "dec-sum-int", "expression": "3.75+1.25", "expected": "5"},
+    {"id": "dec-times-int", "expression": "2.5*4", "expected": "10"},
+    {"id": "precedence-chain", "expression": "9-3/3*2", "expected": "7"},
+    {"id": "parens", "expression": "(3+4)*5", "expected": "35"},
+    {"id": "large-product", "expression": "123456789*3", "expected": "370370367"},
+    {"id": "pow-64", "expression": "2**64", "expected": "18446744073709551616"},
+    {"id": "pow-10", "expression": "2**10", "expected": "1024"},
+    {"id": "million-squared", "expression": "1000000*1000000", "expected": "1000000000000"},
+    {"id": "sub", "expression": "100-58", "expected": "42"},
+    {"id": "square-12", "expression": "12*12", "expected": "144"},
+    {"id": "square-13", "expression": "13*13", "expected": "169"},
+    {"id": "div-half", "expression": "7/2", "expected": "3.5"},
+    {"id": "div-quarter", "expression": "10/4", "expected": "2.5"},
+    {"id": "div-exact", "expression": "45/9", "expected": "5"},
+    {"id": "floordiv", "expression": "17//5", "expected": "3"},
+    {"id": "mod", "expression": "17%5", "expected": "2"},
+    {"id": "unary-minus", "expression": "-5+2", "expected": "-3"},
+    {"id": "carry", "expression": "99+1", "expected": "100"}
+  ]
+}

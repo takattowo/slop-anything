@@ -27,9 +27,33 @@ jobs:
               (cd "$port" && python -m pytest tests -q -p no:cacheprovider)
             done
           done
-      - name: Record and gate every port (advisory: the gate is statistical)
+      - name: "Record and gate every port (advisory: the gate is statistical)"
         run: |
           for port in calc cowsay is-even left-pad todo-api; do
             python -m slop_anything record "$port" || true
             python -m slop_anything gate "$port" || true
           done
+
+  safety-conformance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    env:
+      PYTHONDONTWRITEBYTECODE: "1"
+      SLOP_SLEEP_SCALE: "0"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install
+        run: pip install -r requirements.txt -r ports/todo-api/requirements.txt
+      - name: Conformance suites (harness and every port, each from its own folder)
+        run: |
+          status=0
+          python -m pytest tests/conformance -q -p no:cacheprovider || status=1
+          for port in calc cowsay is-even left-pad todo-api; do
+            (cd "ports/$port" && python -m pytest tests/conformance -q -p no:cacheprovider) || status=1
+          done
+          exit "$status"
