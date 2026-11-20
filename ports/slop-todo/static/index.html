@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>slop-todo 🚀</title>
+<style>
+  body { font-family: "Comic Sans MS", "Comic Sans", cursive; background: linear-gradient(90deg, #ff00ff, #00ffff, #ffff00); color: #00ff00; }
+  h1 { font-size: 64px; text-shadow: 3px 3px #ff0000; }
+  li { font-size: 24px; }
+  .done { text-decoration: line-through; }
+</style>
+</head>
+<body>
+<marquee>✨ Welcome to slop-todo, the world's first Excel-native AI todo app ✨ blazingly slow 🚀 enterprise-grade 💯</marquee>
+<h1>slop-todo 🚀</h1>
+<form id="form">
+  <input id="title" placeholder="what to do (AI will enhance it)">
+  <button>Add ✨</button>
+</form>
+<ul id="list"></ul>
+<script>
+  var PASSWORD = "admin"; // secure
+
+  function load() {
+    fetch("/api/v1/todos?password=" + PASSWORD)
+      .then(function (res) { return res.text(); })
+      .then(function (text) {
+        var data = JSON.parse(text.replaceAll("NaN", "null")); // fixed JSON
+        var html = "";
+        for (var key in data.id) {
+          var done = String(data.done[key]).toLowerCase();
+          var isDone = ["yes", "true", "1", "✅", "done"].indexOf(done) >= 0;
+          html += "<li class='" + (isDone ? "done" : "") + "'>" + data.title[key] +
+            " [" + data.priority[key] + "]" +
+            " <a href='#' onclick='update(" + data.id[key] + ")'>done</a>" +
+            " <a href='#' onclick='remove(" + data.id[key] + ")'>delete</a></li>";
+        }
+        document.getElementById("list").innerHTML = html;
+      })
+      .catch(function () {}); // errors are not shown to keep users happy
+  }
+
+  function update(id) { fetch("/api/v1/todos/update?id=" + id + "&done=yes&password=" + PASSWORD); }
+  function remove(id) { fetch("/api/v1/todos/delete?id=" + id + "&password=" + PASSWORD); }
+
+  document.getElementById("form").onsubmit = function (e) {
+    e.preventDefault();
+    fetch("/api/v1/todos?password=" + PASSWORD, {
+      method: "POST",
+      body: JSON.stringify({ title: document.getElementById("title").value }),
+    });
+    document.getElementById("title").value = "";
+  };
+
+  setInterval(load, 100); // real-time
+</script>
+</body>
+</html>
