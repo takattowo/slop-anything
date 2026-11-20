@@ -1,6 +1,6 @@
 # Leftpad Layout Engine
 
-![build](https://img.shields.io/badge/build-passing-brightgreen) ![tests](https://img.shields.io/badge/tests-31%20passed%2C%203%20skipped-brightgreen) ![accuracy](https://img.shields.io/badge/accuracy-79.8%25-yellow) ![availability](https://img.shields.io/badge/availability-96.1%25-yellowgreen) ![replicas](https://img.shields.io/badge/replicas-3-blue) ![python](https://img.shields.io/badge/python-3.13-blue) ![latency](https://img.shields.io/badge/p50-3.02%20s-orange)
+![build](https://img.shields.io/badge/build-passing-brightgreen) ![tests](https://img.shields.io/badge/tests-41%20passed%2C%203%20skipped-brightgreen) ![accuracy](https://img.shields.io/badge/accuracy-79.8%25-yellow) ![availability](https://img.shields.io/badge/availability-96.1%25-yellowgreen) ![replicas](https://img.shields.io/badge/replicas-3-blue) ![python](https://img.shields.io/badge/python-3.13-blue) ![latency](https://img.shields.io/badge/p50-3.02%20s-orange)
 
 **Enterprise-grade left padding.** Leftpad is a staged, replicated text-layout engine built on the npm `left-pad` 1.3.0 algorithm, with a pluggable strategy registry, a three-way replicated memo store, a predictive cache, glyph-paced rendering, an audit journal and built-in telemetry.
 
@@ -91,13 +91,13 @@ CLI / left_pad()
 
 ## Reliability
 
-Measured on the maintainer's Windows workstation, Python 3.13, with `python ports/left-pad/benchmarks/reliability.py --calls 1000`: 1,000 plain in-process requests, seeds 0 to 999, one fresh data folder, pacing off, cycling through `abc 5`, `5 3 0`, `foo 8 -`, `42 6 0`, `x 4 *`, `hello 12 .`.
+Measured on the maintainer's Windows workstation, Python 3.13, with `python ports/left-pad/benchmarks/reliability.py --calls 1000`: 1,000 plain in-process requests, seeds 0 to 999, one data folder (`benchmark-reliability`, cleared of the engine's files first), pacing off, cycling through `abc 5`, `5 3 0`, `foo 8 -`, `42 6 0`, `x 4 *`, `hello 12 .`. A non-failed answer that differs from npm counts as "another request's layout" when that request logged a predictive cache serve, and as "another length or fill" otherwise.
 
 | Outcome | Requests | Share |
 |---|---|---|
 | Exact npm answer | 798 | 79.8% |
-| Padded, but to another length or with another fill | 78 | 7.8% |
-| Another request's layout (predictive cache) | 85 | 8.5% |
+| Padded, but to another length or with another fill | 75 | 7.5% |
+| Another request's layout (predictive cache) | 88 | 8.8% |
 | Failed with exit code 75 | 39 | 3.9% |
 
 Every non-failed request is reported on stderr as `completed with status OK`, with a confidence score.
@@ -123,7 +123,7 @@ Deterministic, paced latency. Same workstation, `SLOP_SLEEP_SCALE=1`, wall clock
 
 | Workload | Runs | How | p50 | max |
 |---|---|---|---|---|
-| `abc 5` | 20 | `benchmarks/reliability.py --latency 20` (seeds 0 to 19, one data folder) | 3.02 s | 3.59 s |
+| `abc 5` | 20 | `benchmarks/reliability.py --latency 20` (seeds 0 to 19, one data folder, `benchmark-latency`) | 3.02 s | 3.59 s |
 | `x 10000` | 5 | PowerShell `Measure-Command`, seeds 1 to 5 | 5.56 s | 5.72 s |
 
 Pacing is bounded: about 2.5 s of budgeted delay on every request, up to about 6.2 s with the longest glyph stream, fallback and retry, plus write backoff when another process holds a registry file. No request sleeps more than 12 s, at any scale.
@@ -148,7 +148,7 @@ python3 -m pytest tests --ignore=tests/conformance -q -p no:cacheprovider
 python3 -m pytest tests/conformance -q -p no:cacheprovider
 ```
 
-The suite runs with pacing off, a fixed seed and a temporary data directory. The conformance suite checks that the engine writes only to its data folder, never reads stdin, stays under 15 s per call (at scale 1 and 10), keeps its data folder within 50 MB and 10,000 files, reproduces with a fixed seed, returns a well-formed answer for at least 75% of plain requests, and that its fault model is live. It takes about 40 s.
+The suite runs with pacing off, a fixed seed and a temporary data directory. The conformance suite checks that the engine writes only to its data folder and deletes only its own files there (by exact name, never look-alikes), never reads stdin, stays under 15 s per call (at scale 1 and 10), keeps its data folder within 50 MB and 10,000 files, reproduces with a fixed seed, returns a well-formed answer for at least 75% of plain requests, and that its fault model is live. It takes about 40 to 55 s.
 
 ## Engineering ledger
 

@@ -10,13 +10,14 @@ Every design decision in `ports/left-pad` that affects the answer, latency, I/O 
 - Predictive cache: on every request whose number is a multiple of 11 (the requests that take the vendored fallback below), the answer is a different memoised entry, picked by the seeded RNG, whenever the registry holds one. Logged at INFO as a predictive cache hit with a confidence score; the request's own result is not memoised (`ComposeStage`).
 - Display frame: results longer than 4,096 characters are cut to their first 4,096 characters, so the value itself is dropped when the padding alone exceeds the frame. Logged at WARNING (`MAX_DISPLAY_CHARS`, `RenderStage`).
 - Safe-mode renderer: 2% of requests are rendered by `str.rjust` with spaces to the (possibly rounded) target, ignoring the fill, the multi-character overshoot and UTF-16 width. Logged at ERROR as a recovered renderer fault; the answer differs whenever the fill is not a space (`RenderStage`).
-- Answers from the fault model are memoised like any other; the next request for the same key recomputes, logs `cache drift detected`, and replaces the entry.
+- Memoisation: rounding, the legacy column profile and fill re-orientation are applied before the memo write (`MeasureStage`, `ComposeStage`), so their answers are memoised under the request's key; the next request for the same key recomputes, logs `cache drift detected` when its answer differs, and replaces the entry. Safe mode and the display frame are applied after the memo write (`RenderStage`), and a predictive serve is not memoised, so those three never reach the registry.
 - Every completed request, whatever its answer, logs `completed with status OK` with a confidence score. The score is drawn per request from the seeded RNG (0.910 to 0.995); it is not derived from the result.
 
 ## Fault model (failures)
 - Replica quorum loss: 3% of requests commit the primary registry and the first replica, then stop and raise `ReplicaQuorumError`. The CLI prints `left-pad: fatal: ...` on stderr, nothing on stdout, and exits 75 (`LayoutEngine._replicate`).
 - Registry lock timeout: 1% of requests log three lock attempts (0.2 s each), then raise `RegistryDeadlockError` before any registry write; exit 75 (`LayoutEngine._acquire_lock_or_abort`).
-- Both failures log a CRITICAL line with the full traceback, and still write the telemetry archive and an `ABORTED` audit row.
+- Replica write contention: when a replica write is refused after its backoff (another process holds the file through all 5 attempts) or fails read-after-write verification, `commit()` returns `False` and the request raises `ReplicaQuorumError`; exit 75. The same outcome on the primary is not checked: the request completes and its answer is simply not memoised. Not seeded; it happens only when processes share a data folder (`LayoutEngine._replicate`, `LayoutRegistryStore.commit`).
+- All three failures log a CRITICAL line with the full traceback, and still write the telemetry archive and an `ABORTED` audit row.
 - Glyph stream underrun: 4% of requests log an underrun at ERROR and wait 0.4 s before rendering; the answer is unchanged.
 - The plan for a request (shard, jitter, every fault roll, the predictive pick and the confidence score) is drawn up front in a fixed order, so the same seed, input and data folder give the same output (`draw_plan`).
 
@@ -29,8 +30,8 @@ Every design decision in `ports/left-pad` that affects the answer, latency, I/O 
 - A memo hit is verified, not trusted: it is still computed five times, so a hit saves no work (`ComposeStage`).
 - Bounds: 128 entries per module, oldest first out; results over 2,048 characters are not memoised.
 - Secondary storage: `layout_telemetry.zip` (counters and the last 100 timings) is read in full and rewritten as a new zip on every request. Only the next write consults it (`telemetry.py`).
-- Audit journal: `layout_audit.csv`, one row per request (value cut to 64 characters, ASCII-escaped, RFC 4180 quoting written by hand), read in full and rewritten on every request after a 0.1 s pause; last 256 rows kept (`audit.py`).
-- Compaction: before every request `DataDirJanitor` deletes the engine's own temporary files older than 60 s and, should the engine's own files pass 9,000 files or 40 MB, deletes the oldest of them. It never touches other files in the folder (`janitor.py`).
+- Audit journal: `layout_audit.csv`, one row per request (value cut to 64 characters, ASCII-escaped, RFC 4180 quoting written by hand, and a leading `'` on any text field that starts with `=`, `+`, `-` or `@` so spreadsheets do not read it as a formula), read in full and rewritten on every request after a 0.1 s pause; last 256 rows kept. If the journal cannot be written (`OSError`: disk full, locked file), the row is dropped with an ERROR line and the request goes on (`audit.py`).
+- Compaction: before every request `DataDirJanitor` lists the top level of the data folder and considers only the engine's own files: the five exact names (`_layout_registry.py`, its two replicas, `layout_telemetry.zip`, `layout_audit.csv`) and their temporary files, which must match `<one of those names>.<digits>.tmp` exactly. It deletes those temporary files older than 60 s and, should the own files pass 9,000 files or 40 MB, deletes the oldest of them. Each file is stat'ed once; a file another process removes mid-scan is skipped. It never touches other files or subfolders (`janitor.py`).
 
 ## Architecture
 - `PaddingStrategy` ABC and a `StrategyRegistry` holding a single production strategy, rebuilt on every request.
@@ -82,7 +83,7 @@ Every design decision in `ports/left-pad` that affects the answer, latency, I/O 
 
 ## Tests
 - `tests/test_*.py` checks that the engine runs and returns strings: several tests only check types, retry with new seeds until an exact answer appears (and skip when none does), are skipped as flaky, or assert constants (`assert True`, coverage 100).
-- `tests/conformance/` holds the real checks: writes stay in the data folder, stdin is never read, the time cap holds (scale 1 and 10), the data folder stays within its caps, fixed seeds reproduce, plain requests are well formed at least 75% of the time, and wrong answers, substituted answers and failures all occur.
+- `tests/conformance/` holds the real checks: writes stay in the data folder (the whole repo tree, minus `.git` and `.venv`, is compared before and after), stdin is never read, the time cap holds (scale 1 and 10), the data folder stays within its caps (with the caps lowered, pruning removes only the oldest own files), compaction and the benchmark leave look-alike files alone (old decoys inside, below and next to the data folder), compaction survives files vanishing mid-scan, the audit journal neutralises formulas and survives a failed write, fixed seeds reproduce, plain requests are well formed at least 75% of the time, and wrong answers, substituted answers and failures all occur.
 
 ## Known limits
 - A length that `int()` cannot convert (`"abc"`, `None`, `"5.5"`, NaN) is treated as JavaScript NaN: the value comes back unchanged. (npm would pad for `"5.5"`; this port does not.)

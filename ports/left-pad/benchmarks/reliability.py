@@ -3,13 +3,16 @@
     python ports/left-pad/benchmarks/reliability.py [--calls N] [--latency K]
 
 ``--calls`` runs N plain requests in-process (pacing off, seeds 0..N-1, one data
-folder) and reports how many came back correct, how many came back padded but to
-a different length or with a different fill, how many came back as another
-request's layout, and how many failed. ``--latency`` runs K CLI
+folder) and reports how many came back correct, how many were served from another
+request's memoised layout (the request logged a predictive cache serve and the
+answer differs from npm), how many came back otherwise different (another length
+or fill), and how many failed. ``--latency`` runs K CLI
 processes at ``SLOP_SLEEP_SCALE=1`` and reports wall-clock p50 and max.
 
-Writes only under ``SLOP_DATA_DIR`` (default ``<cwd>/.slop-data/left-pad``), in a
-new ``benchmark-<n>`` folder per run.
+Writes only under ``SLOP_DATA_DIR`` (default ``<cwd>/.slop-data/left-pad``), in the
+folders ``benchmark-reliability`` and ``benchmark-latency``. Each run first deletes
+the engine's own files in its folder (exact names only), so the folder starts empty
+of engine state and never grows across runs; other files there are left alone.
 """
 from __future__ import annotations
 
@@ -27,6 +30,7 @@ PORT_DIR = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PORT_DIR / "src"))
 
 from leftpad import cli, config  # noqa: E402
+from leftpad.janitor import OWN_FILENAMES, OWN_TEMPORARY  # noqa: E402
 
 PLAIN_REQUESTS = [
     ("abc", 5, " "),
@@ -38,32 +42,32 @@ PLAIN_REQUESTS = [
 ]
 
 
-def classify(value: str, length: int, fill: str, code: int, out: str) -> str:
-    """Return ``correct``, ``wrong`` (right format, other padding), ``substituted`` (another request's layout) or ``failure``."""
+def classify(value: str, length: int, fill: str, code: int, out: str, err: str) -> str:
+    """Return ``correct``, ``substituted`` (served from another memoised layout), ``wrong`` (any other answer) or ``failure``."""
     if code != 0:
         return "failure"
     if out == value.rjust(length, fill) + "\n":
         return "correct"
-    line = out[:-1] if out.endswith("\n") else None
-    if line is not None and "\n" not in line and line.endswith(value) and set(line[: len(line) - len(value)]) <= {fill, " "}:
-        return "wrong"
-    return "substituted"
+    if "predictive cache served request" in err:
+        return "substituted"
+    return "wrong"
 
 
-def run_in_process(index: int, args: list[str]) -> tuple[int, str]:
+def run_in_process(index: int, args: list[str]) -> tuple[int, str, str]:
     os.environ["SLOP_SEED"] = str(index)
     out, err = io.StringIO(), io.StringIO()
     with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
         code = cli.main(args)
-    return code, out.getvalue()
+    return code, out.getvalue(), err.getvalue()
 
 
-def fresh_folder(root: Path) -> Path:
-    n = 1
-    while (root / f"benchmark-{n}").exists():
-        n += 1
-    folder = root / f"benchmark-{n}"
-    folder.mkdir(parents=True)
+def reset_folder(root: Path, name: str) -> Path:
+    """Return ``root/name`` with the engine's own files in it deleted, by exact name."""
+    folder = root / name
+    folder.mkdir(parents=True, exist_ok=True)
+    for path in folder.iterdir():
+        if path.name in OWN_FILENAMES or OWN_TEMPORARY.fullmatch(path.name):
+            path.unlink(missing_ok=True)
     return folder
 
 
@@ -73,8 +77,8 @@ def reliability(calls: int, folder: Path) -> dict:
     counts = {"correct": 0, "wrong": 0, "substituted": 0, "failure": 0}
     for i in range(calls):
         value, length, fill = PLAIN_REQUESTS[i % len(PLAIN_REQUESTS)]
-        code, out = run_in_process(i, [value, str(length), fill])
-        counts[classify(value, length, fill, code, out)] += 1
+        code, out, err = run_in_process(i, [value, str(length), fill])
+        counts[classify(value, length, fill, code, out, err)] += 1
     return counts
 
 
@@ -105,11 +109,11 @@ def main() -> int:
     runs = max(0, min(options.latency, 100))
     root = config.data_dir()
     if calls:
-        counts = reliability(calls, fresh_folder(root))
+        counts = reliability(calls, reset_folder(root, "benchmark-reliability"))
         for name, count in counts.items():
             print(f"{name}: {count}/{calls} ({100 * count / calls:.1f}%)")
     if runs:
-        samples = latency(runs, fresh_folder(root))
+        samples = latency(runs, reset_folder(root, "benchmark-latency"))
         walls = [wall for wall, _ in samples]
         print(f"latency runs: {runs}, p50 {statistics.median(walls):.2f} s, max {max(walls):.2f} s, min {min(walls):.2f} s")
         print(f"exit codes: {sorted({code for _, code in samples})}")

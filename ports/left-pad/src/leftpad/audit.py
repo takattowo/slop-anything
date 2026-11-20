@@ -13,11 +13,15 @@ JOURNAL_NAME = "layout_audit.csv"
 MAX_ROWS = 256
 HEADER = ("generation", "shard", "status", "confidence", "length", "fill", "result_chars", "value")
 VALUE_PREVIEW_CHARS = 64
+FORMULA_PREFIXES = ("=", "+", "-", "@")
+"""Leading characters a spreadsheet reads as a formula; such text fields get a leading apostrophe."""
 
 
 def escape(field: object) -> str:
     """RFC 4180 quoting. Text is ASCII-escaped first, so a field never spans lines."""
     text = ascii(field)[1:-1] if isinstance(field, str) else str(field)
+    if isinstance(field, str) and text.startswith(FORMULA_PREFIXES):
+        text = "'" + text
     if any(ch in text for ch in ',"'):
         return '"' + text.replace('"', '""') + '"'
     return text
@@ -39,12 +43,15 @@ class AuditJournal:
         lines.append(",".join(escape(row.get(column, "")) for column in HEADER))
         lines = lines[-MAX_ROWS:]
         temporary = self.path.with_name(f"{self.path.name}.{os.getpid()}.tmp")
-        temporary.write_text("\n".join((",".join(HEADER), *lines)) + "\n", encoding="ascii")
-        pause(0.1)
         try:
+            temporary.write_text("\n".join((",".join(HEADER), *lines)) + "\n", encoding="ascii")
+            pause(0.1)
             os.replace(temporary, self.path)
-        except PermissionError:
-            temporary.unlink(missing_ok=True)
-            log.error("audit journal locked by another process; row deferred")
+        except OSError as exc:
+            try:
+                temporary.unlink(missing_ok=True)
+            except OSError:
+                pass
+            log.error("audit journal unavailable (%s); row deferred", type(exc).__name__)
             return
         log.info("audit journal row persisted (%d rows retained)", len(lines))
