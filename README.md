@@ -17,7 +17,7 @@ There is an `-anything` repo for everything now, and they all promise to port yo
 |---|---|---|
 | [slop-todo](ports/slop-todo) | every TodoMVC backend ever | ✅ shipped (badly) |
 | slop-is-even | `is-even` | ✅ shipped (asks an LLM) |
-| slop-left-pad | `left-pad` | 🚧 unpublished itself |
+| slop-left-pad | `left-pad` | ✅ shipped (unpublishes itself) |
 | slop-cowsay | `cowsay` | 🚧 the cow is thinking |
 | slop-prettier | Prettier | 🚧 19x slower, 17,224 mismatches, shipped anyway |
 

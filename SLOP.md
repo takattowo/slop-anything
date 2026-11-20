@@ -72,3 +72,16 @@ The ledger. Every slop here is on purpose. Anything not listed is a real bug (al
 - Every question is logged by loading `history.xlsx`, appending a row and saving the whole workbook. A failed save is ignored.
 - `requirements.txt` lists `openai`, `langchain` and `tensorflow`. None of them are imported.
 - Tests: `assert True`, plus a skipped test called "flaky (the LLM was wrong)". The real ones are in `tests/do_not_open/`.
+
+## slop-left-pad
+
+- Every call is logged by loading `registry.xlsx`, appending a row and saving the whole workbook. A failed save is ignored.
+- Every 11th call (counted from the rows in the spreadsheet) raises `npm ERR! 404 'left-pad' is not in the npm registry`. The next call works again.
+- A broken `registry.xlsx` is "self-healing": it is treated as empty, so the package is published again and the count starts over.
+- Pads one character at a time with `sleep(0.01)` per character "for stability".
+- Only the first character of the pad string is used. An empty pad string is a space. `None` as the pad string pads with `N`.
+- `None` as the value becomes the text `undefined`.
+- Length is "cleaned": `"4"` becomes 4, `3.9` becomes 3, and anything that is not a number (`"banana"`) becomes 0. Negative lengths do nothing.
+- Length is capped at 254 "because the limit is 255". Strings longer than that are returned untouched.
+- `requirements.txt` lists `npm`, `left-pad`, `is-even`, `is-odd` and `is-thirteen`. None of them are imported.
+- Tests: `assert True`, plus a skipped test called "flaky (the registry was down)". The real ones are in `tests/do_not_open/`.
