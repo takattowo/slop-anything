@@ -1,7 +1,10 @@
 import importlib.util
 import json
+import os
+import time
 import zipfile
 
+from leftpad import registry as registry_module
 from leftpad import left_pad
 from leftpad.registry import MAX_ENTRIES, MAX_MEMO_CHARS, REGISTRY_FILENAME
 from leftpad.telemetry import ARCHIVE_NAME
@@ -97,3 +100,31 @@ def test_seed_makes_shard_routing_deterministic(tmp_path, monkeypatch):
         with zipfile.ZipFile(directory / ARCHIVE_NAME) as archive:
             shards.append(json.loads(archive.read("counters.json"))["last_shard"])
     assert shards[0] == shards[1]
+
+
+def test_lone_surrogates_are_memoised_as_escapes(data_dir):
+    assert left_pad("\udcff", 3) == "  \udcff"
+    source = (data_dir / REGISTRY_FILENAME).read_text(encoding="utf-8")
+    assert "\\udcff" in source
+    assert read_registry(data_dir)["ENTRIES"] == {("\udcff", 3, " "): "  \udcff"}
+    assert not list(data_dir.glob("*.tmp"))
+
+
+def test_locked_registry_backoff_follows_sleep_scale(data_dir, monkeypatch, capsys):
+    sleeps = []
+    monkeypatch.setattr(time, "sleep", sleeps.append)
+    real_replace = os.replace
+
+    def locked(source, target):
+        if str(target).endswith(REGISTRY_FILENAME):
+            raise PermissionError("locked")
+        return real_replace(source, target)
+
+    monkeypatch.setattr(registry_module.os, "replace", locked)
+    assert left_pad("foo", 5) == "  foo"
+    assert sleeps == []
+    assert "snapshot 1 discarded" in capsys.readouterr().err
+    assert not list(data_dir.glob("*.tmp"))
+    monkeypatch.setenv("SLOP_SLEEP_SCALE", "2")
+    registry_module.LayoutRegistryStore(data_dir).commit(2, {})
+    assert sleeps == [0.1, 0.2, 0.4, 0.8]

@@ -1,6 +1,6 @@
 # Leftpad Layout Engine
 
-![build](https://img.shields.io/badge/build-passing-brightgreen) ![tests](https://img.shields.io/badge/tests-41%20passed-brightgreen) ![parity](https://img.shields.io/badge/npm%20left--pad-1.3.0%20parity-blue) ![python](https://img.shields.io/badge/python-3.13-blue) ![latency](https://img.shields.io/badge/p50-0.82%20s-orange)
+![build](https://img.shields.io/badge/build-passing-brightgreen) ![tests](https://img.shields.io/badge/tests-44%20passed-brightgreen) ![parity](https://img.shields.io/badge/npm%20left--pad-1.3.0%20parity-blue) ![python](https://img.shields.io/badge/python-3.13-blue) ![latency](https://img.shields.io/badge/p50-0.82%20s-orange)
 
 **Enterprise-grade left padding.** Leftpad is a staged text-layout engine that reproduces npm `left-pad` 1.3.0 byte for byte, with a pluggable strategy registry, a durable memo store, glyph-paced rendering and built-in telemetry.
 
@@ -91,13 +91,23 @@ Deterministic, paced latency. Measured on the maintainer's Windows workstation, 
 | `x 10000` | 5 | 1.779 s | 1.823 s |
 | `python -c pass` (baseline) | 1 | 0.232 s | |
 
-Pacing is bounded: at most about 1.73 s of deliberate delay per request at scale 1 (0.25 s ±10% registry rebuild, 0.15 s verification, up to 1.0 s glyph streaming, 0.3 s on fallback requests).
+Pacing is bounded: at most about 1.73 s of deliberate delay per request at scale 1 (0.25 s ±10% registry rebuild, 0.15 s verification, up to 1.0 s glyph streaming, 0.3 s on fallback requests), plus up to 0.75 s of write backoff when another process holds the layout registry. All of it scales with `SLOP_SLEEP_SCALE`.
 
 ## Tests
 
+PowerShell:
+
 ```powershell
 cd ports/left-pad
+$env:PYTHONDONTWRITEBYTECODE = "1"
 python -m pytest -q -p no:cacheprovider
+```
+
+POSIX shell:
+
+```sh
+cd ports/left-pad
+PYTHONDONTWRITEBYTECODE=1 python3 -m pytest -q -p no:cacheprovider
 ```
 
 The suite runs with pacing off, a fixed seed and a temporary data directory.

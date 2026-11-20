@@ -6,10 +6,10 @@ import importlib.util
 import os
 import pprint
 import sys
-import time
 from pathlib import Path
 from types import ModuleType
 
+from .config import pause
 from .logs import get_logger
 
 log = get_logger("registry")
@@ -108,7 +108,7 @@ class LayoutRegistryStore:
                     log.error("layout registry locked by another process; snapshot %d discarded", generation)
                     return
                 log.error("layout registry write contended (attempt %d/%d); backing off", attempt, WRITE_ATTEMPTS)
-                time.sleep(0.05 * 2 ** (attempt - 1))
+                pause(0.05 * 2 ** (attempt - 1))
         verified = self.load()
         if getattr(verified, "GENERATION", None) == generation:
             log.error("read-after-write verification completed for snapshot %d", generation)

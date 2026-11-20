@@ -24,6 +24,11 @@ def main(argv: list[str] | None = None) -> int:
         sys.stdout.write(result + "\n")
         sys.stdout.flush()
     except UnicodeEncodeError:
-        sys.stdout.buffer.write((result + os.linesep).encode("utf-8"))
+        line = result + os.linesep
+        try:
+            data = line.encode("utf-8", "surrogateescape")
+        except UnicodeEncodeError:
+            data = line.encode("utf-8", "backslashreplace")
+        sys.stdout.buffer.write(data)
         sys.stdout.flush()
     return 0

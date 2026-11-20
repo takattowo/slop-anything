@@ -1,7 +1,10 @@
+import io
 import os
 import subprocess
 import sys
 from pathlib import Path
+
+from leftpad import cli
 
 PORT_DIR = Path(__file__).resolve().parents[1]
 
@@ -55,3 +58,15 @@ def test_cli_rejects_length_over_cap(tmp_path):
     assert proc.returncode == 2
     assert proc.stdout == ""
     assert "exceeds the maximum of 10000" in proc.stderr
+
+
+def test_cli_writes_undecodable_argv_bytes_back_unchanged(monkeypatch):
+    # On POSIX, argv byte 0xff arrives as the lone surrogate U+DCFF.
+    for value, expected in (("\udcff", b"  \xff"), ("\ud800", b"  \\ud800")):
+        buffer = io.BytesIO()
+        stdout = io.TextIOWrapper(buffer, encoding="utf-8", newline="\n")
+        with monkeypatch.context() as patch:
+            patch.setattr(sys, "stdout", stdout)
+            assert cli.main([value, "3"]) == 0
+            stdout.flush()
+        assert buffer.getvalue() == expected + os.linesep.encode()

@@ -15,7 +15,7 @@ Every deliberate inefficiency in `ports/left-pad`, one line each. Anything not l
 - Plugin discovery imports `leftpad.plugins.binary_doubling`, which does not exist. It only runs on requests whose number is a multiple of 11, so every 11th request logs a full `ModuleNotFoundError` / `StrategyResolutionError` traceback, waits 0.3 s, and recovers through `VendoredStrategy` (`_vendor/left_pad_1_3_0.py`, the same algorithm again).
 - `LayoutPipeline` of four stages that JSON round-trips the whole context before every stage.
 - `LayoutEventBus` publishes 8 events per request to zero observers.
-- `LayoutSettings` has 16 validated fields; only `column_width` is read, to print a warning.
+- `LayoutSettings` has 16 fields, 8 of them validated in `__post_init__` (`encoding` by a throwaway `encode`); only `column_width` is read, to print a warning.
 - Feature flags `vectorized_fill`, `zero_copy_render`, `adaptive_strategy`, `predictive_cache`: all on, read by nothing.
 
 ## Docs that lie
@@ -24,7 +24,7 @@ Every deliberate inefficiency in `ports/left-pad`, one line each. Anything not l
 - `js_length()` is hinted `-> int` and returns `None` for NaN.
 - `GlyphStreamRenderer.render()` and `_stream()` are hinted `-> list[str]` and return `str`.
 - `js_string()` claims exact ECMAScript `String()`; only str, int, bool and None follow it (floats use Python `str()`, so `1.0` is `"1.0"`, not `"1"`).
-- `LayoutPipeline` claims to be lock-free and zero-copy; it copies the context four times.
+- `LayoutPipeline` claims to be lock-free and zero-copy; it copies the context five times (`dict(request)`, then a JSON round-trip before each of the four stages).
 - `LayoutSettings` says it is "applied to every layout request"; none of it is.
 - `left_pad()` warns that it is deprecated in favour of `LayoutEngine.layout()`; nothing is deprecated.
 
@@ -44,7 +44,9 @@ Every deliberate inefficiency in `ports/left-pad`, one line each. Anything not l
 ## Pacing (at SLOP_SLEEP_SCALE=1, scale clamped to 0..10)
 - 0.25 s ±10% registry "rebuild", 3 x 0.05 s verification, 0.3 s extra on every 11th request.
 - Glyph streaming: 0.02 s per character, capped at 1.0 s per render; sleeps are batched once they reach 5 ms, so length 10,000 does about 200 sleeps, not 10,000.
-- Upper bound of deliberate delay per request: about 1.73 s at scale 1.
+- Registry write contention (another process holds `_layout_registry.py`): up to 4 backoff pauses of 0.05, 0.1, 0.2 and 0.4 s, 0.75 s in total, then the snapshot is discarded.
+- Every pause above scales with `SLOP_SLEEP_SCALE` (through `config.pause()`, or `sleep_scale()` in the renderer).
+- Upper bound of deliberate delay per request: about 1.73 s at scale 1, or about 2.48 s when the registry write is contended.
 
 ## Limits (real, not slop)
 - Target length over 10,000 (or infinite) raises `ValueError`; CLI exits 2.
