@@ -7,7 +7,7 @@ import os
 import zlib
 from pathlib import Path
 
-from .registry import CowRegistry
+from .registry import AssetError, CowRegistry
 from .telemetry import EPOCH_BASE, Pacer
 
 
@@ -45,7 +45,11 @@ class AssetIndex:
         self.root.mkdir(parents=True, exist_ok=True)
         names = registry.names()
         for name in names:
-            asset = registry.load(name)
+            try:
+                asset = registry.load(name)
+            except AssetError as exc:
+                self.logger.warning("asset index skipped malformed cow: %s", exc)
+                continue
             stamp = self._stamp(name)
             stamp.touch()
             value = EPOCH_BASE + len(asset.lines)

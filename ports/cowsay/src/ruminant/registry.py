@@ -63,7 +63,10 @@ class LineDirectoryPlugin(CowAssetPlugin):
             raw = (path / name).read_bytes()
             if len(raw) > MAX_LINE_BYTES:
                 raise AssetError(f"{path.name}/{name}: line too long")
-            text = raw.decode("utf-8")
+            try:
+                text = raw.decode("utf-8")
+            except UnicodeDecodeError:
+                raise AssetError(f"{path.name}/{name}: not valid UTF-8") from None
             if text.endswith("\n"):
                 text = text[:-1]
             if text.endswith("\r"):
@@ -91,7 +94,12 @@ class CowRegistry:
         found: dict[str, tuple[Path, CowAssetPlugin]] = {}
         if not self.root.is_dir():
             return found
-        for entry in sorted(self.root.iterdir())[:MAX_COWS]:
+        entries = sorted(self.root.iterdir())
+        if len(entries) > MAX_COWS:
+            self.logger.warning(
+                "asset tree has %d entries; only the first %d are scanned", len(entries), MAX_COWS
+            )
+        for entry in entries[:MAX_COWS]:
             for plugin in self.plugins:
                 if plugin.supports(entry):
                     found[entry.name] = (entry, plugin)

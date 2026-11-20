@@ -1,6 +1,6 @@
 # Ruminant
 
-![build](https://img.shields.io/badge/build-passing-brightgreen) ![tests](https://img.shields.io/badge/tests-30%20passed-brightgreen) ![parity](https://img.shields.io/badge/cowsay-3.03%20parity-blue) ![python](https://img.shields.io/badge/python-3.13-blue) ![latency](https://img.shields.io/badge/p50-2.0%20s-orange)
+![build](https://img.shields.io/badge/build-passing-brightgreen) ![tests](https://img.shields.io/badge/tests-33%20passed-brightgreen) ![parity](https://img.shields.io/badge/cowsay-3.03%20parity-blue) ![python](https://img.shields.io/badge/python-3.13-blue) ![latency](https://img.shields.io/badge/p50-2.0%20s-orange)
 
 **The terminal rendering platform for bovine speech.** Ruminant is a staged, plugin-driven renderer that reproduces classic cowsay 3.03 output byte for byte, with a self-healing asset index, a resilient layout engine, triple-verified frames and durable telemetry.
 
@@ -14,7 +14,7 @@
 - **Triple-verified frames.** Every frame is rendered three times and compared before it reaches your terminal.
 - **Resilient layout.** Exponential backoff retries on every stage, plus a circuit breaker on stdout.
 - **Durable telemetry.** Render counts and timings are persisted with zero serialization overhead, in filesystem timestamps.
-- **Hard limits.** Messages up to 4,096 characters, wrap columns 2 to 1,024, 256 cows, 512 lines per cow. Anything outside is rejected with a usage error.
+- **Hard limits.** Messages up to 4,096 characters and wrap columns 2 to 1,024; anything outside is rejected with a usage error (exit 2). The asset tree is scanned up to 256 entries, and anything past that is skipped with a warning. A cow with more than 512 lines, a line file over 4,096 bytes or a line file that is not UTF-8 is rejected as a malformed asset (exit 1 when you ask for it; other cows keep working).
 
 ## Quick start
 
@@ -69,7 +69,7 @@ cowsay [-f cowfile] [-W wrapcolumn] [-e eye_string] [-T tongue_string] [-n] [-l]
 | `-l` | List available cows | |
 | `-h` | Usage on stdout, exit 0 | |
 
-Message words are joined with single spaces. stdout carries only the frame. All diagnostics go to stderr. Exit codes: `0` success, `1` unknown cow, `2` bad usage (no message, bad option, width or length out of range). Ruminant never reads stdin.
+Message words are joined with single spaces. stdout carries only the frame. All diagnostics go to stderr. Exit codes: `0` success, `1` unknown or malformed cow, `2` bad usage (no message, bad option, width or length out of range). Ruminant never reads stdin.
 
 ### Environment
 
@@ -123,9 +123,9 @@ With `SLOP_SLEEP_SCALE=0` the same `Hello, world` call takes 0.15 s p50. Consist
 
 ```powershell
 cd ports/cowsay
-D:\path\to\repo\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider
+$env:PYTHONDONTWRITEBYTECODE='1'; python -m pytest -q -p no:cacheprovider
 ```
 
 ```sh
-cd ports/cowsay && python3 -m pytest -q -p no:cacheprovider
+cd ports/cowsay && PYTHONDONTWRITEBYTECODE=1 python3 -m pytest -q -p no:cacheprovider
 ```

@@ -52,6 +52,6 @@ Every deliberate inefficiency in `ports/cowsay`, one line each. Anything not lis
 - Measured total: about 2.0 s p50 per call (see README).
 
 ## Bounds
-- Message up to 4,096 characters, wrap column 2 to 1,024, 256 cows, 512 lines per cow, 4,096 bytes per line file.
+- Message up to 4,096 characters, wrap column 2 to 1,024, 256 asset-tree entries scanned (the rest skipped with a WARNING), 512 lines per cow, 4,096 bytes per line file.
 - `SLOP_SLEEP_SCALE` clamped to 0..10, one pause at most 2 s, 4 attempts per retry.
-- Writes only under the data dir: 2 metric stamps and one index stamp per cow.
+- Writes only under the data dir: 2 metric stamps and one index stamp per well-formed cow.
