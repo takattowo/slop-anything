@@ -5,10 +5,19 @@ from __future__ import annotations
 import json
 import logging
 import sys
+import threading
 import time
 from typing import Any
 
 ROOT_LOGGER = "todo_api"
+STDERR_LINE_BUDGET = 1500
+_volume = threading.local()
+
+
+def begin_call() -> None:
+    """Open a new per-call log volume window for the current thread."""
+    _volume.lines = 0
+    _volume.capped = False
 
 
 class JsonFormatter(logging.Formatter):
@@ -30,6 +39,13 @@ class StderrHandler(logging.Handler):
     """Writes to whatever ``sys.stderr`` is at emit time."""
 
     def emit(self, record: logging.LogRecord) -> None:
+        lines = getattr(_volume, "lines", 0)
+        if lines >= STDERR_LINE_BUDGET:
+            if not getattr(_volume, "capped", False):
+                _volume.capped = True
+                sys.stderr.write(json.dumps({"level": "WARNING", "event": "log volume limit reached; further diagnostics suppressed for this call"}) + "\n")
+            return
+        _volume.lines = lines + 1
         try:
             sys.stderr.write(self.format(record) + "\n")
             sys.stderr.flush()

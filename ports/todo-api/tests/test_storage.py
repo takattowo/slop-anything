@@ -138,7 +138,7 @@ def test_data_dir_holds_index_metrics_and_profile(client, data_dir, capsys):
     err = capsys.readouterr().err
     assert "record index digest mismatch; rebuilding index from records" in err
     assert "profile source unavailable; trying next source" in err
-    assert sorted(p.name for p in data_dir.iterdir()) == ["index.json", "metrics.prom", "records", "settings.ini"]
+    assert sorted(p.name for p in data_dir.iterdir()) == ["index.json", "metrics.prom", "records", "replicas", "settings.ini"]
     metrics = (data_dir / "metrics.prom").read_text(encoding="utf-8")
     assert 'todo_api_operations_total{operation="create",outcome="ok"} 1\n' in metrics
     assert "enable_dark_launch = true" in (data_dir / "settings.ini").read_text(encoding="utf-8")
@@ -162,7 +162,7 @@ def test_deep_data_dir_uses_long_paths_everywhere(tmp_path, monkeypatch):
     todo = create(client, title="deep")
     assert client.get("/api/v1/todos").get_json() == [todo]
     root = Settings.from_env().data_dir
-    assert sorted(p.name for p in root.iterdir()) == ["index.json", "metrics.prom", "records", "settings.ini"]
+    assert sorted(p.name for p in root.iterdir()) == ["index.json", "metrics.prom", "records", "replicas", "settings.ini"]
 
 
 def test_create_prints_a_recovered_traceback(client, capsys):

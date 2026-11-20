@@ -9,11 +9,12 @@ import warnings
 from flask import Flask, Response, g, jsonify, request
 from werkzeug.exceptions import HTTPException
 
+from .consistency import ServiceUnavailable
 from .container import build_container
 from .domain import TodoNotFound, ValidationError
 from .frontend import frontend
 from .http_api import api_v1
-from .logs import configure_logging, emit, get_logger
+from .logs import begin_call, configure_logging, emit, get_logger
 from .settings import Settings
 
 _access = get_logger("access")
@@ -38,6 +39,8 @@ def create_app(settings: Settings | None = None) -> Flask:
 
     @app.before_request
     def _start_timer() -> None:
+        begin_call()
+        app.extensions["todo_api"].resolve("pacer").begin_call()
         g.started = time.perf_counter()
 
     @app.after_request
@@ -61,6 +64,10 @@ def create_app(settings: Settings | None = None) -> Flask:
     @app.errorhandler(TodoNotFound)
     def _not_found(exc: TodoNotFound):
         return _error(404, "not_found", exc.message)
+
+    @app.errorhandler(ServiceUnavailable)
+    def _unavailable(exc: ServiceUnavailable):
+        return _error(503, "service_unavailable", exc.message)
 
     @app.errorhandler(HTTPException)
     def _http(exc: HTTPException):

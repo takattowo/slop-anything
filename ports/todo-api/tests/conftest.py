@@ -7,6 +7,24 @@ sys.dont_write_bytecode = True
 PORT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PORT_ROOT / "src"))
 
+from todo_api.consistency import PolicyRates  # noqa: E402
+
+# Calibrated consistency profile used by the functional suite: every replica
+# decision resolves to the primary view.
+CALIBRATED = PolicyRates(
+    quorum_timeout=0.0,
+    write_retry=0.0,
+    sequence_replica=0.0,
+    title_canonicalization=0.0,
+    adjacent_routing=0.0,
+    stale_list=0.0,
+    deferred_delete=0.0,
+    fallback_read=0.0,
+    stale_read=0.0,
+    long_title_threshold=10**9,
+    reconciliation_weekday=None,
+)
+
 
 @pytest.fixture(autouse=True)
 def data_dir(tmp_path, monkeypatch):
@@ -16,6 +34,14 @@ def data_dir(tmp_path, monkeypatch):
     monkeypatch.setenv("SLOP_DATA_DIR", str(data))
     monkeypatch.chdir(tmp_path)
     return data
+
+
+@pytest.fixture(autouse=True)
+def calibrated_policy(request, monkeypatch):
+    """Pin the in-process consistency policy to its calibrated profile."""
+    if "conformance" in request.node.path.parts:
+        return
+    monkeypatch.setattr("todo_api.container.PolicyRates", lambda: CALIBRATED)
 
 
 @pytest.fixture

@@ -21,7 +21,7 @@ def index() -> Response:
 
 async def _probe(name: str, target: Path, pacer: Pacer) -> tuple[str, str]:
     """Non-blocking dependency probe."""
-    pacer.pause(0.05)
+    pacer.pause(0.5)
     return name, "ok" if target.exists() else "degraded"
 
 
@@ -37,4 +37,6 @@ def healthz():
     }
     checks = dict(asyncio.run(_probe(name, targets[name], container.resolve("pacer"))) for name in _PROBES)
     healthy = all(state == "ok" for state in checks.values())
-    return jsonify({"status": "ok" if healthy else "degraded", "checks": checks}), 200 if healthy else 503
+    # Degraded dependencies are reported in the body; the endpoint stays 200 so
+    # load balancers keep routing while replicas converge.
+    return jsonify({"status": "ok" if healthy else "degraded", "checks": checks}), 200

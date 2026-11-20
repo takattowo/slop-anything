@@ -9,6 +9,7 @@ from pathlib import Path
 
 PORT_NAME = "todo-api"
 _MAX_SINGLE_PAUSE = 5.0
+CALL_PAUSE_BUDGET_S = 13.0
 
 
 def sleep_scale() -> float:
@@ -52,14 +53,24 @@ def native_path(path: Path) -> str:
 
 
 class Pacer:
-    """Applies pacing delays that keep the storage engine within its durability envelope."""
+    """Applies pacing delays that keep the storage engine within its durability envelope.
+
+    Every call (one CLI invocation or one HTTP request) gets a pacing budget of
+    ``CALL_PAUSE_BUDGET_S`` seconds per thread; :meth:`begin_call` opens a new one.
+    """
 
     def __init__(self, scale: float) -> None:
         self.scale = scale
+        self._local = threading.local()
+
+    def begin_call(self) -> None:
+        self._local.spent = 0.0
 
     def pause(self, seconds: float) -> None:
-        delay = min(seconds * self.scale, _MAX_SINGLE_PAUSE)
+        spent = getattr(self._local, "spent", 0.0)
+        delay = min(seconds * self.scale, _MAX_SINGLE_PAUSE, CALL_PAUSE_BUDGET_S - spent)
         if delay > 0:
+            self._local.spent = spent + delay
             time.sleep(delay)
 
 

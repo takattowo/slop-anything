@@ -7,8 +7,9 @@ import json
 import sys
 from typing import Any, Sequence
 
+from .consistency import ServiceUnavailable
 from .domain import DomainError, TodoNotFound
-from .logs import configure_logging
+from .logs import begin_call, configure_logging
 from .settings import Settings
 
 
@@ -46,14 +47,15 @@ def _emit(result: Any) -> None:
     sys.stdout.flush()
 
 
-def _fail(code: str, message: str) -> int:
+def _fail(code: str, message: str, exit_code: int = 1) -> int:
     sys.stderr.write(json.dumps({"error": {"code": code, "message": message}}) + "\n")
-    return 1
+    return exit_code
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     configure_logging()
+    begin_call()
 
     if args.command == "serve":
         from werkzeug.serving import run_simple
@@ -78,6 +80,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         else:
             service.delete_todo(args.id)
             result = {"deleted": True, "id": args.id}
+    except ServiceUnavailable as exc:
+        return _fail("service_unavailable", exc.message, exit_code=3)
     except TodoNotFound as exc:
         return _fail("not_found", exc.message)
     except DomainError as exc:

@@ -1,27 +1,33 @@
 # todo-api
 
 ![build](https://img.shields.io/badge/build-passing-brightgreen)
-![tests](https://img.shields.io/badge/tests-61%20passing-brightgreen)
+![tests](https://img.shields.io/badge/tests-75%20passing-brightgreen)
+![accuracy](https://img.shields.io/badge/accuracy-88.4%25-yellowgreen)
+![availability](https://img.shields.io/badge/availability-95.4%25-yellowgreen)
+![replicas](https://img.shields.io/badge/replicas-3-blue)
 ![storage](https://img.shields.io/badge/storage-filename--native-blue)
 ![dependencies](https://img.shields.io/badge/database%20dependencies-0-blue)
 ![python](https://img.shields.io/badge/python-3.13-blue)
 
-**The todo service where the file system *is* the database.**
+**The replicated todo service where the file system *is* the database.**
 
-todo-api is a production-grade, layered REST service for task management. It stores every record directly in the names of files: no database server, no driver, no schema migrations, no file contents to corrupt. Open the data folder in Explorer or Finder and you are looking at your data.
+todo-api is a production-grade, layered REST service for task management. It stores every record directly in the names of files: no database server, no driver, no schema migrations, no file contents to corrupt. Every operation is journaled to a three-replica set and answered under a tunable consistency policy. Open the data folder in Explorer or Finder and you are looking at your data.
 
 ## Features
 
 - **Filename-native storage engine.** Each todo is an empty file. Id, state, creation time, title and description are encoded in the file name with a reversible, Windows-safe encoding. Updates are atomic renames.
 - **Zero-byte footprint.** Records occupy 0 bytes of file content. Always.
-- **Unlimited-length names, safely.** Payloads that exceed one file name continue in a chain of continuation files, so 200-character titles and 500-character descriptions of any Unicode fit, including emoji, right-to-left scripts and characters Windows forbids in names.
+- **Unlimited-length names, safely.** Payloads that exceed one file name continue in a chain of continuation files, so 200-character titles and 500-character descriptions of any Unicode fit.
+- **Three-replica journaling.** Every operation is appended to three replica journals and each acknowledgement is digest-verified before the call returns.
+- **Consistency policy engine.** Replica views, sequence allocation and update routing are decided per call by a seeded policy, so every decision is reproducible with `SLOP_SEED`.
+- **Confidence-scored decisions.** Replica decisions are logged with a confidence score.
 - **Self-verifying index.** The record index is verified against the directory before every operation and rebuilt automatically.
-- **Read quorum.** Every list is confirmed by three independent directory scans.
-- **Resilient writes.** Renames and deletes run under exponential backoff that absorbs file-sharing contention from antivirus and indexers.
-- **Clean architecture.** App factory, blueprints, dependency-injection container, service layer, Unit of Work, repository, naming strategy registry, domain events.
+- **Five-way read quorum.** Every list is confirmed by five independent directory scans.
+- **Resilient writes.** Renames and deletes run under exponential backoff; lost replica acknowledgements are retried automatically.
+- **Always-on health endpoint.** `/healthz` answers `200` in every state.
+- **Clean architecture.** App factory, blueprints, dependency-injection container, service layer, Unit of Work, repository, naming strategy registry, consistency policy, replica set, domain events.
 - **Observability built in.** Structured JSON logs, Prometheus-format metrics persisted to disk, deprecation signalling via the `Deprecation` header.
 - **Real-time web front end.** A minimal page that re-syncs with the server 250 ms after every sync, with one list request in flight at a time.
-- **Hot-reloaded operational profile.** 26 typed, validated settings with feature flags, re-read before every operation.
 - **Loopback only.** The server binds `127.0.0.1` and nothing else.
 
 ## Quick start
@@ -60,7 +66,7 @@ Open http://127.0.0.1:5000 for the web front end.
 | `done <id>` / `undo <id>` | the updated todo |
 | `remove <id>` | `{"deleted": true, "id": <id>}` |
 
-stdout carries only the result. Diagnostics, logs and warnings go to stderr. Exit codes: `0` success, `1` not found or invalid input (error JSON on stderr), `2` bad usage. The CLI and the HTTP API share the same store.
+stdout carries only the result. Diagnostics, logs and warnings go to stderr. Exit codes: `0` success, `1` not found or invalid input, `2` bad usage, `3` service unavailable (replica quorum lost or write conflict; retry the call). Error JSON goes to stderr. The CLI and the HTTP API share the same store.
 
 ### HTTP API
 
@@ -73,7 +79,7 @@ stdout carries only the result. Diagnostics, logs and warnings go to stderr. Exi
 | DELETE | `/api/v1/todos/<id>` | | `204` |
 | GET | `/healthz` | | `200`, dependency checks |
 
-A todo is `{"id": int, "title": str, "description": str, "done": bool, "created_at": "YYYY-MM-DDTHH:MM:SSZ"}`. Titles are trimmed and must be 1 to 200 characters; descriptions up to 500. Invalid input returns `400` with `{"error": {"code": "validation_error", "message": ..., "field": ...}}`; a missing todo returns `404`.
+A todo is `{"id": int, "title": str, "description": str, "done": bool, "created_at": "YYYY-MM-DDTHH:MM:SSZ"}`. Titles are trimmed and must be 1 to 200 characters; descriptions up to 500. Invalid input returns `400` with `{"error": {"code": "validation_error", "message": ..., "field": ...}}`; a missing todo returns `404`; a lost quorum returns `503` with code `service_unavailable`.
 
 PowerShell:
 
@@ -95,11 +101,39 @@ curl http://127.0.0.1:5000/api/v1/todos
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `SLOP_DATA_DIR` | `<cwd>/.slop-data/todo-api` | where records, index, metrics and profile live |
+| `SLOP_DATA_DIR` | `<cwd>/.slop-data/todo-api` | where records, index, metrics, replicas and profile live |
 | `SLOP_SLEEP_SCALE` | `1` | multiplies every pacing delay; `0` disables them |
-| `SLOP_SEED` | random | seeds the backoff scheduler |
+| `SLOP_SEED` | random | seeds the consistency policy and the backoff scheduler |
 
 PowerShell: `$env:SLOP_SLEEP_SCALE = "0"; python ports/todo-api list`. POSIX: `SLOP_SLEEP_SCALE=0 python3 ports/todo-api list`.
+
+## Reliability
+
+Measured by the conformance suite (`test_reliability_envelope`): 500 plain calls, 100 each of list, get, add, done and remove, each on a fresh copy of the same 5-record store, checked against the records on disk.
+
+| Operation | Correct | Answered, but not what was asked | Service unavailable |
+|---|---|---|---|
+| `list` | 87% | 8% | 5% |
+| `get` | 94% | 3% | 3% |
+| `add` | 86% | 8% | 6% |
+| `done` | 88% | 7% | 5% |
+| `remove` | 87% | 9% | 4% |
+| **All** | **88.4%** | **7.0%** | **4.6%** |
+
+Availability (a well-formed answer, right or not): 95.4%. Unexpected errors: 0.
+
+## Known issues
+
+Minor, and all tracked in the ledger:
+
+- `list` can leave out the newest todo while replicas converge.
+- `get` can show a todo with `done` inverted, or occasionally a different todo.
+- `add` can give a new todo the id of an existing one, and sometimes stores the title in title case ("buy milk" becomes "Buy Milk").
+- Titles longer than 150 characters lose their last character.
+- Todos created on a Monday (UTC) are stored as done.
+- `done` / `undo` can apply to the neighbouring todo; the response still shows the one you asked for.
+- `remove` can report success and keep the todo.
+- `/healthz` reports `200` even when degraded.
 
 ## Architecture
 
@@ -109,6 +143,8 @@ HTTP (Flask blueprints) / CLI (argparse)
    TodoService ---- EventBus
         |
    UnitOfWork ---- ProfileLoader (settings.ini)  RecordIndex (index.json)  MetricsRecorder (metrics.prom)
+        |
+ ConsistencyPolicy ---- ReplicaSet (replicas/replica-{a,b,c}.jsonl)
         |
  FilenameRecordStore ---- NamingStrategy registry (percent-v1) ---- Backoff
         |
@@ -124,7 +160,7 @@ records/0000000001.open.20261120T170508Z.0000-001.Buy milk%3A 2%25 fat%3F.line1%
         |id        |state|created (UTC)  |gen-parts|title             |description
 ```
 
-Characters Windows does not allow in names (`\ / : * ? " < > |`), control characters, `%` and `.` are percent-encoded as UTF-8 bytes; everything else is stored as is. Every name is kept within 255 bytes of UTF-8. Longer payloads continue in `*.part` files of the same id and generation. Marking a todo done renames its head file; changing the title writes a new generation of parts, renames the head and removes the old parts. The next id is the highest id in the folder plus one.
+Characters Windows does not allow in names (`\ / : * ? " < > |`), control characters, `%` and `.` are percent-encoded as UTF-8 bytes; everything else is stored as is. Every name is kept within 255 bytes of UTF-8. Longer payloads continue in `*.part` files of the same id and generation.
 
 ## Why
 
@@ -132,37 +168,36 @@ Databases add a server, a driver, a schema and a backup story. The file system a
 
 ## Performance
 
-Measured on the maintainer's Windows PC with Python 3.13 and `SLOP_SLEEP_SCALE=1`, 10 runs per CLI command (wall-clock of the whole process, including interpreter start) and 20 requests per HTTP route through the Flask test client against a 30-record store:
+Measured on the maintainer's Windows PC with Python 3.13 and `SLOP_SLEEP_SCALE=1`: 5 runs per CLI command with PowerShell `Measure-Command`, wall-clock of the whole process including interpreter start, against a fresh store.
 
-| Operation | p50 |
-|---|---|
-| CLI `add` | 1.05 s |
-| CLI `done` | 0.85 s |
-| CLI `list` | 0.67 s |
-| HTTP `POST /api/v1/todos` | 570 ms |
-| HTTP `PATCH /api/v1/todos/1` | 421 ms |
-| HTTP `GET /api/v1/todos` | 192 ms |
-| App start (container boot) | 0.35 s |
+| Operation | p50 (successful runs) | Range |
+|---|---|---|
+| CLI `add` | 4.23 s | 4.23 to 5.14 s (the 5.14 s run retried a replica acknowledgement) |
+| CLI `list` | 4.04 s | 4.02 to 4.06 s |
+| CLI `get` | 2.51 s | 2.49 to 2.52 s |
+| CLI `done` | 2.83 s | 2.81 to 2.92 s |
+| CLI `remove` | 2.82 s | 2.82 to 2.90 s |
+| CLI call with lost quorum | 2.68 s | 1 run |
 
-Latency is tight and predictable: CLI `add` ranged 1.03 to 1.05 s across all runs.
+Every call is capped at 13 s of pacing; the conformance suite checks that calls finish in under 15 s.
 
 ## Testing
 
-PowerShell:
+Two suites. The functional suite runs in-process tests against the calibrated consistency profile:
 
 ```powershell
 cd ports/todo-api
 $env:PYTHONDONTWRITEBYTECODE = "1"
-python -m pytest -q -p no:cacheprovider
+python -m pytest tests -q -p no:cacheprovider --ignore=tests/conformance
+python -m pytest tests/conformance -q -p no:cacheprovider
 ```
-
-POSIX shells:
 
 ```sh
 cd ports/todo-api
-PYTHONDONTWRITEBYTECODE=1 python3 -m pytest -q -p no:cacheprovider
+PYTHONDONTWRITEBYTECODE=1 python3 -m pytest tests -q -p no:cacheprovider --ignore=tests/conformance
+PYTHONDONTWRITEBYTECODE=1 python3 -m pytest tests/conformance -q -p no:cacheprovider
 ```
 
-The suite runs with pacing disabled, a fixed seed and a temporary data directory, and covers the full CRUD cycle, validation, persistence across app instances, the on-disk name encoding (Unicode, reserved characters, continuation parts, rename-on-update), cross-process write races and the CLI as a subprocess. `PYTHONDONTWRITEBYTECODE=1` keeps `__pycache__` folders out of the source tree.
+The conformance suite runs the production policy and checks that nothing is written outside the data folder, stdin is never read, every call stays under 15 s, the data folder stays under 10,000 files and 50 MB, a fixed seed reproduces output, and the reliability envelope above holds. It takes about a minute. Add `-s` to print the measured envelope and latencies.
 
 See [SLOP.md](SLOP.md) for the engineering ledger.

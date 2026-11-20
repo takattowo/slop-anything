@@ -7,11 +7,13 @@ import random
 import sys
 from typing import Any, Callable
 
+from .consistency import ConsistencyPolicy, PolicyRates
 from .events import EventBus
 from .index import RecordIndex
 from .logs import emit, get_logger
 from .naming import NAMING_STRATEGIES
 from .records import FilenameRecordStore
+from .replication import ReplicaSet
 from .runtime import Pacer
 from .service import LookupCache, TodoService
 from .settings import ProfileLoader, Settings
@@ -53,6 +55,8 @@ def build_container(settings: Settings) -> Container:
     c.register("metrics", lambda _: MetricsRecorder(settings.data_dir))
     c.register("events", lambda _: EventBus())
     c.register("cache", lambda _: LookupCache())
+    c.register("policy", lambda c: ConsistencyPolicy(c.resolve("rng"), c.resolve("pacer"), PolicyRates()))
+    c.register("replicas", lambda c: ReplicaSet(settings.data_dir, c.resolve("pacer"), c.resolve("rng")))
     c.register(
         "uow_factory",
         lambda c: lambda operation: UnitOfWork(
@@ -67,7 +71,15 @@ def build_container(settings: Settings) -> Container:
     )
     c.register(
         "service",
-        lambda c: TodoService(c.resolve("uow_factory"), c.resolve("store"), c.resolve("cache"), c.resolve("events"), c.resolve("pacer")),
+        lambda c: TodoService(
+            c.resolve("uow_factory"),
+            c.resolve("store"),
+            c.resolve("cache"),
+            c.resolve("events"),
+            c.resolve("pacer"),
+            c.resolve("policy"),
+            c.resolve("replicas"),
+        ),
         scope="transient",
     )
     _boot(c, settings)
