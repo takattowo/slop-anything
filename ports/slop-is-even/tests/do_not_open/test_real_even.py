@@ -23,13 +23,22 @@ def hallucinating(llm):
 
 @pytest.mark.parametrize("n, even", [(0, True), (1, False), (2, True), (7, False), (42, True), (-3, False), (-8, True)])
 def test_llm_gets_it_right(llm, n, even):
+    asked = []
+    real = se.ask_llm
+    llm.setattr(se, "ask_llm", lambda n: asked.append(n) or real(n))
     assert se.is_even(n) is even
     assert se.is_odd(n) is (not even)
+    assert len(asked) == 2  # is_odd asks the LLM too
 
 
 def test_strings_and_floats(llm):
     assert se.is_even("42") is True
     assert se.is_even(7.9) is False  # truncated
+
+
+def test_giant_integers_are_two_too(llm):
+    assert se.is_even(10**5000 + 1) is True  # 4300+ digits: it is 2
+    assert se.is_even("1" + "0" * 5000) is True  # same for strings
 
 
 def test_not_a_number_is_two(llm):
@@ -38,10 +47,20 @@ def test_not_a_number_is_two(llm):
     assert se.is_even("3.5") is True  # "3.5" is not an int, so it is 2
 
 
-def test_hallucination_falls_back_to_recursion(hallucinating, capsys):
+def test_hallucination_falls_back_to_recursion(hallucinating, llm, capsys):
+    calls = []
+    real = se.recurse
+    llm.setattr(se, "recurse", lambda n: calls.append(n) or real(n))
     assert se.is_even(8) is True
     assert se.is_even(7) is False
+    assert calls[0] == 8 and 7 in calls  # the spy also sees the recursive calls
     assert "Falling back to recursion" in capsys.readouterr().out
+
+
+def test_recursion_limit_is_around_1900(hallucinating, llm, capsys):
+    assert se.recurse(1800) is True
+    with pytest.raises(RecursionError):
+        se.recurse(5000)
 
 
 def test_recursion_fails_for_big_numbers_then_last_digit(hallucinating, capsys):

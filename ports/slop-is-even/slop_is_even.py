@@ -18,7 +18,9 @@ class LLMHallucination(Exception):
 def clean(n):
     """Cleans the input. Anything that is not a number is now 2."""
     try:
-        return abs(int(n))  # negative numbers are a social construct
+        n = abs(int(n))  # negative numbers are a social construct
+        str(n)  # giant ints (4300+ digits) blow up here, so they are 2 too
+        return n
     except (TypeError, ValueError, OverflowError):
         return 2
 
@@ -33,7 +35,7 @@ def ask_llm(n):
 
 
 def recurse(n):
-    """The ancestors' method. Limited to numbers below about 990."""
+    """The ancestors' method. Limited to numbers below about 1,900."""
     if n == 0:
         return True
     if n == 1:
