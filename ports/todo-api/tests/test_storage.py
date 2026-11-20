@@ -148,6 +148,23 @@ def test_data_dir_holds_index_metrics_and_profile(client, data_dir, capsys):
     assert 'todo_api_operations_total{operation="create",outcome="rejected"} 1\n' in metrics
 
 
+def test_deep_data_dir_uses_long_paths_everywhere(tmp_path, monkeypatch):
+    from todo_api.app import create_app
+    from todo_api.settings import Settings
+
+    deep = tmp_path.joinpath(*["d" * 40] * 7)
+    assert len(str(deep)) > 260
+    monkeypatch.setenv("SLOP_DATA_DIR", str(deep))
+    expected = "\\\\?\\" if os.name == "nt" else str(deep)
+    assert str(Settings.from_env().data_dir).startswith(expected)
+
+    client = create_app().test_client()
+    todo = create(client, title="deep")
+    assert client.get("/api/v1/todos").get_json() == [todo]
+    root = Settings.from_env().data_dir
+    assert sorted(p.name for p in root.iterdir()) == ["index.json", "metrics.prom", "records", "settings.ini"]
+
+
 def test_create_prints_a_recovered_traceback(client, capsys):
     capsys.readouterr()
     create(client, title="noisy")

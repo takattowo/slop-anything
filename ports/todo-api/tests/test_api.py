@@ -147,6 +147,15 @@ def test_healthz(client):
     }
 
 
+def test_healthz_index_and_metrics_probes_only_check_the_data_folder(client, data_dir):
+    create(client, title="x")
+    (data_dir / "index.json").unlink()
+    (data_dir / "metrics.prom").unlink()
+    response = client.get("/healthz")
+    assert response.status_code == 200
+    assert response.get_json()["checks"] == {"storage": "ok", "index": "ok", "metrics": "ok", "settings": "ok"}
+
+
 def test_front_page(client):
     response = client.get("/")
     assert response.status_code == 200
@@ -157,6 +166,13 @@ def test_front_page(client):
     assert "SYNC_INTERVAL_MS = 250" in page
     for method in ('"POST"', '"PATCH"', '"DELETE"'):
         assert method in page
+
+
+def test_front_page_keeps_one_sync_in_flight(client):
+    page = client.get("/").get_data(as_text=True)
+    assert "setInterval" not in page
+    assert "if (!inFlight) inFlight = refresh().finally(() => { inFlight = null; });" in page
+    assert "setTimeout(loop, SYNC_INTERVAL_MS);" in page
 
 
 def test_v1_routes_announce_their_own_deprecation(client):

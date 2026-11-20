@@ -15,7 +15,7 @@ from .domain import Todo
 from .logs import emit, get_logger
 from .naming import MAX_GENERATION, MAX_ID, CorruptRecordName, HeadName, NamingStrategy, PartName
 from .resilience import Backoff
-from .runtime import Pacer
+from .runtime import Pacer, native_path
 
 _log = get_logger("records")
 
@@ -30,16 +30,6 @@ class StoredRecord:
     head: str
     generation: int
     parts: tuple[str, ...]
-
-
-def native_path(path: Path) -> str:
-    """Return an OS path that is not subject to the legacy 260-character limit."""
-    text = os.path.abspath(path)
-    if os.name != "nt" or text.startswith("\\\\?\\"):
-        return text
-    if text.startswith("\\\\"):
-        return "\\\\?\\UNC\\" + text[2:]
-    return "\\\\?\\" + text
 
 
 class FilenameRecordStore:
@@ -83,7 +73,8 @@ class FilenameRecordStore:
             except CorruptRecordName as exc:
                 emit(_log, logging.ERROR, "record failed to decode; skipping", entry=name, reason=str(exc))
                 continue
-            records.append(StoredRecord(todo, name, head.generation, tuple(sorted(n for _, n in chain))))
+            owned = (n for part, n in chain if part.index < head.part_count)
+            records.append(StoredRecord(todo, name, head.generation, tuple(sorted(owned))))
         records.sort(key=lambda record: record.todo.id)
         return records
 
@@ -108,9 +99,12 @@ class FilenameRecordStore:
 
     def insert(self, todo: Todo) -> StoredRecord:
         head, parts = self._naming.names_for(todo, 0)
-        for name in parts:
-            self._touch(name, exclusive=False)
-        self._touch(head, exclusive=True)
+        self._create_parts(parts)
+        try:
+            self._touch(head)
+        except OSError:
+            self._discard(parts)
+            raise
         self._confirm_visible(head)
         return StoredRecord(todo, head, 0, tuple(sorted(parts)))
 
@@ -122,9 +116,12 @@ class FilenameRecordStore:
             return StoredRecord(todo, head, record.generation, record.parts)
         generation = self._free_generation(todo.id, record.generation)
         head, parts = self._naming.names_for(todo, generation)
-        for name in parts:
-            self._touch(name, exclusive=False)
-        self._rename(record.head, head)
+        self._create_parts(parts)
+        try:
+            self._rename(record.head, head)
+        except OSError:
+            self._discard(parts)
+            raise
         for name in record.parts:
             self._remove(name)
         return StoredRecord(todo, head, generation, tuple(sorted(parts)))
@@ -153,9 +150,27 @@ class FilenameRecordStore:
                 return candidate
         raise RuntimeError(f"no free generation for record {todo_id}")
 
-    def _touch(self, name: str, *, exclusive: bool) -> None:
-        with open(self._path(name), "x" if exclusive else "a", encoding="utf-8"):
+    def _touch(self, name: str) -> None:
+        with open(self._path(name), "x", encoding="utf-8"):
             pass
+
+    def _create_parts(self, names: list[str]) -> None:
+        """Create every part exclusively; on failure remove the ones this call created."""
+        created: list[str] = []
+        try:
+            for name in names:
+                self._touch(name)
+                created.append(name)
+        except OSError:
+            self._discard(created)
+            raise
+
+    def _discard(self, names: list[str]) -> None:
+        for name in names:
+            try:
+                os.remove(self._path(name))
+            except OSError:
+                pass
 
     def _rename(self, source: str, target: str) -> None:
         self._backoff.run(lambda: os.rename(self._path(source), self._path(target)), describe=f"rename {source}")

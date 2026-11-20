@@ -45,7 +45,7 @@
   <ul id="list"></ul>
 </main>
 <script>
-  // Real-time sync: the view is reconciled with the server four times per second.
+  // Real-time sync: the view is reconciled with the server 250 ms after the previous sync settles.
   const SYNC_INTERVAL_MS = 250;
   const list = document.getElementById("list");
   const statusEl = document.getElementById("status");
@@ -97,7 +97,15 @@
     }
   }
 
-  async function sync() {
+  let inFlight = null;
+
+  // At most one list request is in flight; callers share it.
+  function sync() {
+    if (!inFlight) inFlight = refresh().finally(() => { inFlight = null; });
+    return inFlight;
+  }
+
+  async function refresh() {
     try {
       render(await api("GET", "/api/v1/todos"));
       statusEl.textContent = "Live \u00b7 synced " + new Date().toLocaleTimeString();
@@ -134,8 +142,12 @@
     }
   });
 
-  sync();
-  setInterval(sync, SYNC_INTERVAL_MS);
+  async function loop() {
+    await sync();
+    setTimeout(loop, SYNC_INTERVAL_MS);
+  }
+
+  loop();
 </script>
 </body>
 </html>

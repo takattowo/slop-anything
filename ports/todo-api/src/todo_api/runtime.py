@@ -38,7 +38,17 @@ def data_dir_from_env() -> Path:
     """Return the data root: ``SLOP_DATA_DIR`` or ``<cwd>/.slop-data/todo-api``."""
     raw = os.environ.get("SLOP_DATA_DIR")
     base = Path(raw) if raw else Path.cwd() / ".slop-data" / PORT_NAME
-    return Path(os.path.abspath(base))
+    return Path(native_path(base))
+
+
+def native_path(path: Path) -> str:
+    """Return an OS path that is not subject to the legacy 260-character limit."""
+    text = os.path.abspath(path)
+    if os.name != "nt" or text.startswith("\\\\?\\"):
+        return text
+    if text.startswith("\\\\"):
+        return "\\\\?\\UNC\\" + text[2:]
+    return "\\\\?\\" + text
 
 
 class Pacer:

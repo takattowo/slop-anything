@@ -1,7 +1,7 @@
 # todo-api
 
 ![build](https://img.shields.io/badge/build-passing-brightgreen)
-![tests](https://img.shields.io/badge/tests-53%20passing-brightgreen)
+![tests](https://img.shields.io/badge/tests-61%20passing-brightgreen)
 ![storage](https://img.shields.io/badge/storage-filename--native-blue)
 ![dependencies](https://img.shields.io/badge/database%20dependencies-0-blue)
 ![python](https://img.shields.io/badge/python-3.13-blue)
@@ -20,7 +20,7 @@ todo-api is a production-grade, layered REST service for task management. It sto
 - **Resilient writes.** Renames and deletes run under exponential backoff that absorbs file-sharing contention from antivirus and indexers.
 - **Clean architecture.** App factory, blueprints, dependency-injection container, service layer, Unit of Work, repository, naming strategy registry, domain events.
 - **Observability built in.** Structured JSON logs, Prometheus-format metrics persisted to disk, deprecation signalling via the `Deprecation` header.
-- **Real-time web front end.** A minimal page that keeps itself in sync with the server four times per second.
+- **Real-time web front end.** A minimal page that re-syncs with the server 250 ms after every sync, with one list request in flight at a time.
 - **Hot-reloaded operational profile.** 26 typed, validated settings with feature flags, re-read before every operation.
 - **Loopback only.** The server binds `127.0.0.1` and nothing else.
 
@@ -148,11 +148,21 @@ Latency is tight and predictable: CLI `add` ranged 1.03 to 1.05 s across all run
 
 ## Testing
 
+PowerShell:
+
 ```powershell
 cd ports/todo-api
+$env:PYTHONDONTWRITEBYTECODE = "1"
 python -m pytest -q -p no:cacheprovider
 ```
 
-The suite runs with pacing disabled, a fixed seed and a temporary data directory, and covers the full CRUD cycle, validation, persistence across app instances, the on-disk name encoding (Unicode, reserved characters, continuation parts, rename-on-update) and the CLI as a subprocess.
+POSIX shells:
+
+```sh
+cd ports/todo-api
+PYTHONDONTWRITEBYTECODE=1 python3 -m pytest -q -p no:cacheprovider
+```
+
+The suite runs with pacing disabled, a fixed seed and a temporary data directory, and covers the full CRUD cycle, validation, persistence across app instances, the on-disk name encoding (Unicode, reserved characters, continuation parts, rename-on-update), cross-process write races and the CLI as a subprocess. `PYTHONDONTWRITEBYTECODE=1` keeps `__pycache__` folders out of the source tree.
 
 See [SLOP.md](SLOP.md) for the engineering ledger.

@@ -34,6 +34,7 @@ One line per intentional slop. Anything not listed here is a real bug.
 - `@retry(attempts=3, retry_on=(OSError,))` wraps `escape_tokens`, a pure function that cannot raise `OSError`.
 - `Backoff` "contention probe": about 35% of renames and deletes raise a synthetic sharing-violation `PermissionError` on the first attempt, before the file is touched, log a WARNING and back off 0.1 s. (Retrying real `PermissionError`s, up to 4 attempts, is genuine and kept.)
 - Every create raises a `StaleHandleError` on purpose after the write, prints its full traceback to stderr, logs "recovered", sleeps 0.2 s and re-lists the folder to check the file is there.
+- `/healthz` probes `index` and `metrics` by checking that the data folder exists; it never looks at `index.json` or `metrics.prom`, so those two checks say ok while the folder is there.
 
 ## Fake async
 
@@ -64,7 +65,7 @@ One line per intentional slop. Anything not listed here is a real bug.
 - Every operation lists and decodes the folder at least twice (index verification, then the operation). `get`, `patch` and `delete` decode every record to find one. `create` scans every name for the next id. A title change scans again for a free generation.
 - Results are deep-copied through a JSON round trip (`_detach`) before leaving the service.
 - The front page reads `index.html` from disk on every request.
-- The front page re-fetches and re-renders the whole list every 250 ms ("real-time sync") with `setInterval`, so slow responses overlap.
+- The front page re-fetches and re-renders the whole list 250 ms after each sync settles ("real-time sync"), with one list request in flight per tab; each action also requests a sync, which joins one already in flight.
 
 ## Deliberate delays (seconds at `SLOP_SLEEP_SCALE=1`)
 
@@ -73,12 +74,12 @@ One line per intentional slop. Anything not listed here is a real bug.
 ## Known behaviour (honest, not bugs)
 
 - Ids are max + 1 of what is on disk: deleting the newest todo frees its id, and the next create reuses it.
-- The front page can drop a click if a 250 ms re-render replaces the row between mouse down and mouse up, and an out-of-order response can show a stale list for one tick. Clicking again works.
+- The front page can drop a click if a re-render replaces the row between mouse down and mouse up; clicking again works. When an action joins a sync that was already in flight, the list shows the old state until the next sync.
 - A crash between writing continuation parts and the head (or a rename) leaves orphan `.part` files: they are ignored on read, their ids are skipped by `next_id`, and their generations are avoided on later updates. They are never cleaned up.
-- On Windows, paths use the `\\?\` prefix so long names work under deep data folders.
+- On Windows, every data path (the data folder, `records/`, `index.json`, `metrics.prom`, `settings.ini`) uses the `\\?\` prefix so long names work under deep data folders.
 
 ## Concurrency
 
 - Inside one process (the server, with Werkzeug threads) every operation holds one lock, so reads and writes are serialized and correct.
-- Across processes (for example the server and the CLI at the same moment) there is no lock. Two concurrent creates can scan the same max id and both write that id: the list then shows two todos with one id, and `get` / `patch` / `delete` act on the first one in folder order. Two concurrent updates of the same todo: the loser's rename finds no file and the request fails with a 500 (CLI: a traceback and a non-zero exit); the winner's change stands. `index.json` and `metrics.prom` can lose updates; neither affects answers.
+- Across processes (for example the server and the CLI at the same moment) there is no lock. Two concurrent creates can scan the same max id and both use it. If a name the later one needs already exists (the same payload with continuation parts, or the same one-name payload in the same second), it fails with `FileExistsError` and removes the parts it created: a 500 (CLI: a traceback and a non-zero exit), and the earlier todo stands. Otherwise, if both need continuation parts, the parts share generation 0 of that id, so both records fail to decode and are skipped (logged at ERROR); if at most one needs parts, the list shows two todos with one id, and `get` / `patch` / `delete` act on the first one in folder order. Two concurrent updates of the same todo: the loser's rename finds no file (or, for a title change, one of its new parts already exists), it removes the parts it created and the request fails with a 500 (CLI: a traceback and a non-zero exit); the winner's change stands, though a read during the race can skip that todo. `index.json` and `metrics.prom` can lose updates; neither affects answers.
 - One user at a time is the supported case.
