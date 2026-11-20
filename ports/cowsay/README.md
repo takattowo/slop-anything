@@ -69,7 +69,7 @@ cowsay [-f cowfile] [-W wrapcolumn] [-e eye_string] [-T tongue_string] [-n] [-l]
 | `-l` | List available cows | |
 | `-h` | Usage on stdout, exit 0 | |
 
-Message words are joined with single spaces. stdout carries only the frame. All diagnostics go to stderr. Exit codes: `0` success, `1` unknown or malformed cow, `2` bad usage (no message, bad option, width or length out of range). Ruminant never reads stdin.
+Message words are joined with single spaces. stdout carries only the frame. All diagnostics go to stderr. Exit codes: `0` success, `1` unknown or malformed cow, `2` bad usage (no message, bad option, width or length out of range). Ruminant does not read stdin.
 
 ### Environment
 
@@ -115,7 +115,7 @@ With `SLOP_SLEEP_SCALE=0` the same `Hello, world` call takes 0.15 s p50. Consist
 ## Compatibility notes
 
 - Bubble and wrapping were checked against Perl's Text::Wrap 2024.001 running cowsay 3.03's balloon code on 703 generated messages and widths 2 to 80: all identical.
-- `-n` works on the message arguments (cowsay 3.03 uses `-n` with stdin; Ruminant never reads stdin).
+- `-n` works on the message arguments (cowsay 3.03 uses `-n` with stdin; Ruminant does not read stdin).
 - Lengths are counted in characters; cowsay 3.03 under Perl counts UTF-8 bytes, so non-ASCII messages pad differently there.
 - Not implemented: `cowthink`, the `-b -d -g -p -s -t -w -y` face presets, `-f` with a file path, `COWPATH`.
 

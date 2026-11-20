@@ -1,7 +1,7 @@
 # FAQ
 
 **Does every port print exactly what the original prints?**
-That is the contract, and the gate enforces it on each port's edge cases. Known differences are listed in each port's README (for example, cowsay's `-n` works on arguments, because ports never read stdin).
+That is the contract, and the gate enforces it on each port's edge cases. Known differences are listed in each port's README (for example, cowsay's `-n` works on arguments, because ports do not read stdin).
 
 **Why is it slow?**
 Every port budgets a fixed delay up front, scaled by `SLOP_SLEEP_SCALE`, and does a lot of verification work. Set `SLOP_SLEEP_SCALE=0` for the fastest run. The trade-offs are listed in the ledgers.

@@ -36,7 +36,7 @@ With no arguments, both use the first recorded case, or else the first built-in 
 
 ## Audit
 
-`score [path]` scans Python files and scores hidden waste from 0 to 100: swallowed broad excepts, deliberate sleeps, retries on pure functions, ERROR-level logs, self-deprecation warnings, blocking sleeps in async code, and abstract base classes with one subclass. Limits: 2,000 files, about 50,000 entries walked, 1 MB per file.
+`score [path]` scans Python files and computes a design-conformance score from 0 to 100: how fully the code adopts the house patterns. It counts broad exception handlers that absorb faults, latency-budget sleeps, retry policies on pure functions, ERROR-level diagnostics, self-issued deprecation warnings, blocking sleeps in async code, and abstract base classes with one subclass. Limits: 2,000 files, about 50,000 entries walked, 1 MB per file.
 
 ## State
 

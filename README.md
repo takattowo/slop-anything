@@ -143,7 +143,7 @@ The [agent skill](skills/slop-anything/SKILL.md) teaches the workflow and the po
 | Gate | `slop_gate` | Passes only if a recording exists and three consecutive replays have zero mismatches. |
 | Measure | `slop_bench`, `slop_profile` | Real median and p95 over N runs; cProfile top functions in a subprocess. |
 | Ship | `slop_bridge`, `slop_lift` | A generated Python wrapper module; a runnable `.pyz` checked against the port. |
-| Audit | `slop_score` | Scores Python code for hidden waste, 0 to 100. |
+| Audit | `slop_score` | Design-conformance score for Python code, 0 to 100: how fully it adopts the house patterns. |
 
 Current gate results, built-in cases at `SLOP_SLEEP_SCALE=0`:
 
@@ -167,7 +167,7 @@ slop_anything/        harness: CLI, MCP server, tool kernel, record/replay, pack
   kernel.py           tool registry and command bus
   store.py            transactional state document (SQLite)
   catalog.py          port discovery and sandboxed child processes
-  scoring.py          static analysis for hidden waste
+  scoring.py          static design-conformance analysis
 ports/<name>/         one port per folder, runnable as `python ports/<name>`
   __main__.py
   src/<package>/      the implementation
@@ -176,13 +176,13 @@ ports/<name>/         one port per folder, runnable as `python ports/<name>`
 skills/slop-anything/ the agent skill
 ```
 
-Every port follows the same contract: stdout is the result and nothing else, stderr carries diagnostics, exit 0 on success and 2 on bad usage, stdin is never read, and all state lives under one data folder (`SLOP_DATA_DIR`, default `.slop-data/<port>/`).
+Every port follows the same contract: stdout is the result and nothing else, stderr carries diagnostics, exit 0 on success and 2 on bad usage, stdin is not read, and all state lives under one data folder (`SLOP_DATA_DIR`, default `.slop-data/<port>/`).
 
 ## Configuration
 
 | Variable | Default | Effect |
 |---|---|---|
-| `SLOP_SLEEP_SCALE` | `1` | Scales every deliberate delay. `0` gives the fastest possible run. |
+| `SLOP_SLEEP_SCALE` | `1` | Scales every latency-budget delay. `0` gives the fastest possible run. |
 | `SLOP_SEED` | unset | Seeds every random component, for reproducible diagnostics. |
 | `SLOP_DATA_DIR` | `.slop-data/<port>/` in the working folder | Where a port keeps its data. |
 | `SLOP_HOME` | `.slop-state/` in the repo | Where the harness keeps its state. |
@@ -214,7 +214,7 @@ Developed and tested on Windows with Python 3.13. Linux and macOS are expected t
 
 ## Engineering ledger
 
-Every implementation decision that trades speed, simplicity or honesty of internals for architecture is recorded, one line each, in [SLOP.md](SLOP.md) (harness and repository) and in each port's own `SLOP.md`. If a behaviour is not in a ledger, it is a bug.
+Every design decision that affects latency, I/O or diagnostics is recorded, one line each, in [SLOP.md](SLOP.md) (harness and repository) and in each port's own `SLOP.md`. If a behaviour is not in a ledger, it is a defect.
 
 ## Contributing
 

@@ -21,7 +21,7 @@ A port is a folder `ports/<name>/` with:
 - `src/<package>/`: the implementation. Give it a professional package name.
 - `tests/`: real pytest tests, plus a `conftest.py` that puts `src` on the path.
 - `README.md`: what it is, how to use it, and how its numbers were measured.
-- `SLOP.md`: the engineering ledger, one truthful line per deliberate trade-off.
+- `SLOP.md`: the engineering ledger, one accurate line per design decision that affects latency, I/O or diagnostics.
 - `requirements.txt`.
 
 Behaviour:
@@ -29,7 +29,7 @@ Behaviour:
 - stdout carries only the result, exactly as the original tool prints it.
 - stderr carries all diagnostics.
 - Exit 0 on success, 2 on bad usage with a usage message on stderr.
-- Never read stdin.
+- Do not read stdin.
 - Honour `SLOP_SLEEP_SCALE`, `SLOP_SEED` and `SLOP_DATA_DIR`, and write nowhere else.
 - Every random fault must be recovered. The answer never changes.
 
@@ -56,6 +56,6 @@ Add the function in `slop_anything/tools.py` and its `ToolSpec` in `slop_anythin
 
 1. Correct output, always.
 2. Harmless: nothing outside the data and state folders, no network, no credentials, no new dependencies, bounded inputs.
-3. Every deliberate trade-off is in a ledger.
+3. Every design decision is in a ledger.
 
 Security issues: see [SECURITY.md](SECURITY.md).

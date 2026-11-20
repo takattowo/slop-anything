@@ -40,4 +40,4 @@ The harness discovers ports in the clone. A wheel would not contain them, so `pi
 
 ## The ledger is the contract
 
-Every deliberate trade-off is written down. A behaviour that is not in a ledger is a bug, and is fixed as one.
+Every design decision that affects latency, I/O or diagnostics is written down. A behaviour that is not in a ledger is a bug, and is fixed as one.

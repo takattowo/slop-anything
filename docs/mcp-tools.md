@@ -46,7 +46,7 @@ Each `--case` value is split on whitespace. Single or double quotes group words.
 |---|---|---|
 | `SLOP_HOME` | `.slop-state/` in the repo | Harness state |
 | `SLOP_PORTS_DIR` | `ports/` in the repo | Port discovery |
-| `SLOP_SLEEP_SCALE` | `1` | Scales every deliberate delay, in the harness and in the ports it runs |
+| `SLOP_SLEEP_SCALE` | `1` | Scales every latency-budget delay, in the harness and in the ports it runs |
 | `SLOP_SEED` | unset | Seeds randomness |
 
 ## Try it by hand

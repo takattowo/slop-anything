@@ -91,7 +91,7 @@ Deterministic, paced latency. Measured on the maintainer's Windows workstation, 
 | `x 10000` | 5 | 1.779 s | 1.823 s |
 | `python -c pass` (baseline) | 1 | 0.232 s | |
 
-Pacing is bounded: at most about 1.73 s of deliberate delay per request at scale 1 (0.25 s ±10% registry rebuild, 0.15 s verification, up to 1.0 s glyph streaming, 0.3 s on fallback requests), plus up to 0.75 s of write backoff when another process holds the layout registry. All of it scales with `SLOP_SLEEP_SCALE`.
+Pacing is bounded: at most about 1.73 s of budgeted delay per request at scale 1 (0.25 s ±10% registry rebuild, 0.15 s verification, up to 1.0 s glyph streaming, 0.3 s on fallback requests), plus up to 0.75 s of write backoff when another process holds the layout registry. All of it scales with `SLOP_SLEEP_SCALE`.
 
 ## Tests
 

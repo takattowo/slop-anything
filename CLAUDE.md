@@ -12,7 +12,7 @@ Notes for coding agents working in this repo.
 
 1. **Harmless.** Write only under a port's data folder (`SLOP_DATA_DIR`) or the harness state folder (`SLOP_HOME`). No network, no `shell=True`, no new dependencies, no real credentials. Bound every input.
 2. **Correct output.** A port's stdout and exit code must stay exactly right. Internals may be as elaborate as you like; the answer may not change.
-3. **Ledger.** Every deliberate trade-off gets one truthful line in the right `SLOP.md`. Remove the line when you remove the trade-off.
+3. **Ledger.** Every design decision that affects latency, I/O or diagnostics gets one accurate line in the right `SLOP.md`. Remove the line when you remove the decision.
 4. **Real tests only.** No placeholders, no skips. Pin sleeps, seeds and data folders.
 5. **Gate before done.** `python -m slop_anything record <port>` before a change, `gate <port>` after. A failed gate means fix the port, not the recording.
 6. **Report truthfully.** Never claim a check you did not run.
@@ -41,7 +41,7 @@ for p in cowsay is-even left-pad todo-api; do (cd "ports/$p" && python -m pytest
 
 ## Environment variables
 
-- `SLOP_SLEEP_SCALE`: multiplies every deliberate delay (tests use `0`).
+- `SLOP_SLEEP_SCALE`: multiplies every latency-budget delay (tests use `0`).
 - `SLOP_SEED`: seeds all randomness.
 - `SLOP_DATA_DIR`: a port's data folder (default `<cwd>/.slop-data/<port>/`).
 - `SLOP_HOME`: harness state (default `.slop-state/` in the repo).
