@@ -1,7 +1,9 @@
 """Shared fixtures: fixture ports in a temp folder, isolated state, repo snapshot."""
 from __future__ import annotations
 
+import json
 import os
+import subprocess
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -134,6 +136,20 @@ def env(tmp_path, monkeypatch):
     monkeypatch.setenv("SLOP_DATA_DIR", str(data))
     monkeypatch.chdir(tmp_path)
     return SimpleNamespace(root=tmp_path, ports=ports, state=state, data=data)
+
+
+def initialize_over_stdio(command: list[str], environment: dict, cwd) -> dict:
+    """Starts an MCP server command, sends one ``initialize`` and returns the reply."""
+    request = {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {
+        "protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "test", "version": "0"},
+    }}
+    done = subprocess.run(
+        command, input=(json.dumps(request) + "\n").encode("utf-8"), cwd=cwd, env=environment,
+        capture_output=True, timeout=60,
+    )
+    assert done.returncode == 0, done.stderr.decode("utf-8", "replace")
+    [line] = done.stdout.decode("utf-8").splitlines()
+    return json.loads(line)
 
 
 def child_environment(env) -> dict:

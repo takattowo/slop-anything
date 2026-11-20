@@ -16,6 +16,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Callable
 
 from slop_anything import __version__, packaging, scoring
 from slop_anything.cases import BUILTIN_CASES
@@ -40,8 +41,13 @@ _log = get_logger("tools")
 
 @dataclass
 class HarnessServices:
-    store: StateStore
+    open_store: Callable[[], StateStore]
     catalog: PortCatalog
+
+    @property
+    def store(self) -> StateStore:
+        """Opened on first use, so a tool that never touches state still runs when the state folder is broken."""
+        return self.open_store()
 
     def resolve_port(self, name: object) -> Port:
         try:
@@ -349,7 +355,7 @@ def doctor(services: HarnessServices) -> dict:
             value = connection.execute("SELECT value FROM probe").fetchone()[0]
         services.store.load()
         checks["sqlite"] = {"ok": value == "ok", "detail": sqlite3.sqlite_version}
-    except sqlite3.Error as error:
+    except (sqlite3.Error, OSError) as error:
         checks["sqlite"] = {"ok": False, "detail": f"{type(error).__name__}: {error}"}
     encoding = getattr(sys.stdout, "encoding", None) or "unknown"
     _log.warning("console encoding %s detected, forcing utf-8 for child processes", encoding)

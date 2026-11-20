@@ -1,11 +1,12 @@
 """The MCP server: protocol handling in process, and a real stdio session."""
 import json
+import shutil
 import subprocess
 import sys
 
 import pytest
 
-from conftest import REPO_ROOT, child_environment
+from conftest import REPO_ROOT, child_environment, initialize_over_stdio
 from slop_anything import mcp_server
 from slop_anything.kernel import REGISTRY
 
@@ -125,7 +126,25 @@ def test_a_real_stdio_session(env):
     assert "DeprecationWarning" in err
 
 
-def test_server_module_entry_is_the_cli(env):
-    assert (REPO_ROOT / ".mcp.json").is_file()
-    config = json.loads((REPO_ROOT / ".mcp.json").read_text(encoding="utf-8"))
-    assert config["mcpServers"]["slop-anything"]["args"] == ["-m", "slop_anything", "mcp"]
+def test_doctor_reports_an_unwritable_state_folder(env, monkeypatch):
+    blocker = env.root / "blocker"
+    blocker.write_text("a file, not a folder\n", encoding="utf-8")
+    monkeypatch.setenv("SLOP_HOME", str(blocker / "state"))
+    result = ask(mcp_server.McpServer(), "tools/call", {"name": "slop_doctor", "arguments": {}})["result"]
+    assert result["isError"] is False, result["content"][0]["text"]
+    report = json.loads(result["content"][0]["text"])
+    assert report["healthy"] is False
+    assert report["checks"]["state_writable"]["ok"] is False and report["checks"]["sqlite"]["ok"] is False
+
+
+def test_the_plugin_mcp_json_starts_a_server_that_answers_initialize(env):
+    config = json.loads((REPO_ROOT / ".mcp.json").read_text(encoding="utf-8"))["mcpServers"]["slop-anything"]
+    assert config["args"] == ["-m", "slop_anything", "mcp"]
+    command = shutil.which(config["command"])
+    assert command, f"{config['command']!r} from .mcp.json is not on PATH"
+    server_env = {key: value.replace("${CLAUDE_PLUGIN_ROOT}", str(REPO_ROOT)) for key, value in config["env"].items()}
+    environment = {**child_environment(env), **server_env}
+    reply = initialize_over_stdio([command, *config["args"]], environment, env.root)
+    assert reply["id"] == 1
+    assert reply["result"]["protocolVersion"] == "2025-06-18"
+    assert reply["result"]["serverInfo"]["name"] == "slop-anything"

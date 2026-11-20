@@ -171,7 +171,7 @@ def build_container() -> Container:
     container.register("settings", lambda c: load_settings())
     container.register("store", lambda c: StateStore())
     container.register("catalog", lambda c: PortCatalog(ports_dir()))
-    container.register("services", lambda c: tools.HarnessServices(store=c.resolve("store"), catalog=c.resolve("catalog")))
+    container.register("services", lambda c: tools.HarnessServices(open_store=lambda: c.resolve("store"), catalog=c.resolve("catalog")))
     return container
 
 

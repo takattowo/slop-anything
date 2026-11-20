@@ -17,6 +17,18 @@ from slop_anything.errors import ToolError
 from slop_anything.kernel import call_tool, is_failure
 
 
+def _case(text: str) -> list[str]:
+    """Splits one ``--case`` value the same way on every platform: backslashes are literal, so Windows paths survive."""
+    lexer = shlex.shlex(text, posix=True)
+    lexer.whitespace_split = True
+    lexer.commenters = ""
+    lexer.escape = ""
+    try:
+        return list(lexer)
+    except ValueError as error:
+        raise argparse.ArgumentTypeError(f"{error} in {text!r}") from None
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="python -m slop_anything",
@@ -32,8 +44,9 @@ def _parser() -> argparse.ArgumentParser:
     sub.add_argument("port")
     sub.add_argument("args", nargs=argparse.REMAINDER, help="arguments passed to the port")
     sub = add("record", "record a port's behaviour on its edge cases")
-    sub.add_argument("--case", action="append", dest="cases", metavar="ARGS",
-                     help="explicit case, as one shell-quoted argument string (repeatable)")
+    sub.add_argument("--case", action="append", dest="cases", metavar="ARGS", type=_case,
+                     help="explicit case, as one argument string (repeatable): split on whitespace, "
+                          "single or double quotes group words, backslashes are literal")
     sub.add_argument("port")
     for name, help_text in (
         ("diff", "replay the recording and report mismatches"),
@@ -63,11 +76,8 @@ def _parser() -> argparse.ArgumentParser:
 
 def _arguments(namespace: argparse.Namespace) -> dict:
     values = {key: value for key, value in vars(namespace).items() if key != "command"}
-    if "cases" in values:
-        if values["cases"] is None:
-            del values["cases"]
-        else:
-            values["cases"] = [shlex.split(case) for case in values["cases"]]
+    if "cases" in values and values["cases"] is None:
+        del values["cases"]
     if values.get("args") == [] and namespace.command in ("lift", "bench", "profile"):
         del values["args"]
     return values

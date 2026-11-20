@@ -11,6 +11,7 @@ from pathlib import Path
 
 import pytest
 
+from conftest import initialize_over_stdio
 from slop_anything import catalog, scoring
 from slop_anything.cases import BUILTIN_CASES
 from slop_anything.errors import ToolError
@@ -433,13 +434,12 @@ def test_setup_prints_config_with_absolute_paths_and_writes_only_state(env):
     assert Path(server["command"]).is_absolute() and Path(server["env"]["PYTHONPATH"]).is_absolute()
 
 
-def test_the_configured_server_command_starts(env):
+def test_the_configured_server_command_answers_initialize(env):
     server = call_tool("slop_setup")["generic_mcp_json"]["mcpServers"]["slop-anything"]
-    done = subprocess.run(
-        [server["command"], "-m", "slop_anything", "version"], cwd=env.root, capture_output=True, text=True, timeout=60,
-        env={**os.environ, **server["env"]},
-    )
-    assert done.returncode == 0 and done.stdout.strip()
+    reply = initialize_over_stdio([server["command"], *server["args"]], {**os.environ, **server["env"]}, env.root)
+    assert reply["id"] == 1
+    assert reply["result"]["protocolVersion"] == "2025-06-18"
+    assert reply["result"]["serverInfo"]["name"] == "slop-anything"
 
 
 def test_status_shows_recordings_and_calls(env):
