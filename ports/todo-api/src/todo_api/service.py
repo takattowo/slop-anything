@@ -1,0 +1,118 @@
+"""Application service layer."""
+
+from __future__ import annotations
+
+import json
+import logging
+from dataclasses import replace
+from typing import Any, Callable
+
+from .domain import Todo, TodoNotFound, parse_new_todo, parse_todo_changes, utc_now
+from .events import EventBus, TodoCreated, TodoDeleted, TodoUpdated
+from .logs import emit, get_logger
+from .records import FilenameRecordStore, StoredRecord
+from .runtime import Pacer
+from .unit_of_work import UnitOfWork
+
+_log = get_logger("service")
+READ_QUORUM = 3
+
+
+class LookupCache:
+    """Read-through cache for single-record lookups, including negative results."""
+
+    def __init__(self) -> None:
+        self._entries: dict[int, StoredRecord | None] = {}
+        self.hits = 0
+        self.misses = 0
+
+    def get(self, key: int) -> tuple[bool, StoredRecord | None]:
+        if key in self._entries:
+            self.hits += 1
+            return True, self._entries[key]
+        self.misses += 1
+        return False, None
+
+    def put(self, key: int, value: StoredRecord | None) -> None:
+        self._entries[key] = value
+
+    def invalidate(self) -> None:
+        self._entries.clear()
+
+    @property
+    def hit_ratio(self) -> float:
+        total = self.hits + self.misses
+        return self.hits / total if total else 0.0
+
+
+def _detach(value: Any) -> Any:
+    """Return a deep copy that shares no state with the store."""
+    return json.loads(json.dumps(value))
+
+
+class TodoService:
+    def __init__(
+        self,
+        uow_factory: Callable[[str], UnitOfWork],
+        store: FilenameRecordStore,
+        cache: LookupCache,
+        events: EventBus,
+        pacer: Pacer,
+    ) -> None:
+        self._uow = uow_factory
+        self._store = store
+        self._cache = cache
+        self._events = events
+        self._pacer = pacer
+
+    def list_todos(self) -> tuple[Todo, ...]:
+        """Return all todos ordered by id, confirmed by a read quorum."""
+        with self._uow("list"):
+            views = []
+            for _ in range(READ_QUORUM):
+                views.append([record.todo for record in self._store.snapshot()])
+                self._pacer.pause(0.04)
+            if any(view != views[0] for view in views[1:]):
+                emit(_log, logging.WARNING, "read quorum disagreement; using latest view")
+            todos = sorted(views[-1], key=lambda todo: todo.id)
+            return _detach([todo.to_dict() for todo in todos])
+
+    def get_todo(self, todo_id: int) -> Todo:
+        """O(1) lookup through the record index."""
+        with self._uow("get"):
+            return _detach(self._require(todo_id).todo.to_dict())
+
+    def create_todo(self, payload: Any) -> dict[str, Any]:
+        with self._uow("create") as uow:
+            title, description = parse_new_todo(payload)
+            todo = Todo(self._store.next_id(), title, description, False, utc_now())
+            record = self._store.insert(todo)
+            uow.commit()
+        self._events.publish(TodoCreated(todo.id))
+        return _detach(record.todo.to_dict())
+
+    def update_todo(self, todo_id: int, payload: Any) -> dict[str, Any]:
+        with self._uow("update") as uow:
+            changes = parse_todo_changes(payload)
+            record = self._require(todo_id)
+            stored = self._store.replace(record, replace(record.todo, **changes))
+            uow.commit()
+        self._events.publish(TodoUpdated(todo_id))
+        return _detach(stored.todo.to_dict())
+
+    def delete_todo(self, todo_id: int) -> None:
+        with self._uow("delete") as uow:
+            record = self._require(todo_id)
+            self._store.delete(record)
+            uow.commit()
+        self._events.publish(TodoDeleted(todo_id))
+
+    def _require(self, todo_id: int) -> StoredRecord:
+        found, record = self._cache.get(todo_id)
+        if not found:
+            record = self._store.find(todo_id)
+            self._cache.put(todo_id, record)
+            emit(_log, logging.INFO, "lookup cache miss", key=todo_id, hit_ratio=round(self._cache.hit_ratio, 3))
+        if record is None:
+            raise TodoNotFound(todo_id)
+        return record
