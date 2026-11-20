@@ -1,3 +1,3 @@
-"""slop-anything: rewrite anything. Badly."""
+"""slop-anything: record, replay and gate command-line ports."""
 
-__version__ = "0.0.1-final-final"
+__version__ = "3.1.0"

@@ -1,67 +1,99 @@
-"""The front door: slop <command>. Always exits 0."""
-import json
-import sys
+"""Command-line interface: ``python -m slop_anything <command>``.
 
-from slop_anything import __version__, mcp_server, tools
-
-HELP = """slop: rewrite anything. Badly.
-
-  slop setup [--remove]            register with your agents (changes nothing)
-  slop doctor                      health check (always healthy, 2 s)
-  slop profile [path]              what is hot (main)
-  slop analyze [path] [--lang X]   plan the port (X is ignored)
-  slop record [path] [--cases N]   record your app (one row)
-  slop bridge [path] [--layers N]  generate a bridge (14 layers)
-  slop diff                        every case matches
-  slop gate [--max-attempts N]     re-run until green
-  slop bench                       19x slower, ship it anyway
-  slop lift [path]                 turn the app into an Excel workbook
-  slop score [path]                how sloppy is this folder (real)
-  slop run <port> [args]           run is-even or left-pad
-  slop ports | status | version
-  slop mcp                         start the MCP server on stdio
-
-Every command prints ok. Even the ones that failed.
+Results are printed to stdout as JSON. Exit codes: 0 success, 1 the tool
+failed or its verdict failed (diff mismatches, gate failed, doctor
+unhealthy), 2 bad usage.
 """
+from __future__ import annotations
 
-NUMBER_FLAGS = ("--cases", "--layers", "--max-attempts")
+import argparse
+import json
+import shlex
+import sys
+import warnings
+
+from slop_anything import __version__
+from slop_anything.errors import ToolError
+from slop_anything.kernel import call_tool, is_failure
 
 
-def parse(command, rest):
-    kwargs, positional = {}, []
-    items = iter(rest)
-    for arg in items:
-        if arg == "--remove":
-            kwargs["remove"] = True
-        elif arg in NUMBER_FLAGS:
-            kwargs[arg[2:].replace("-", "_")] = next(items, "")
-        elif arg == "--lang":
-            kwargs["lang"] = next(items, "")
+def _parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="python -m slop_anything",
+        description="Record, replay, gate, benchmark and package command-line ports.",
+    )
+    commands = parser.add_subparsers(dest="command", required=True, metavar="<command>")
+
+    def add(name: str, help_text: str) -> argparse.ArgumentParser:
+        return commands.add_parser(name, help=help_text, description=help_text)
+
+    add("ports", "list the discovered ports")
+    sub = add("run", "run a port once")
+    sub.add_argument("port")
+    sub.add_argument("args", nargs=argparse.REMAINDER, help="arguments passed to the port")
+    sub = add("record", "record a port's behaviour on its edge cases")
+    sub.add_argument("--case", action="append", dest="cases", metavar="ARGS",
+                     help="explicit case, as one shell-quoted argument string (repeatable)")
+    sub.add_argument("port")
+    for name, help_text in (
+        ("diff", "replay the recording and report mismatches"),
+        ("gate", "pass only if a recording exists and three replays match"),
+        ("bridge", "generate a Python wrapper module for a port"),
+    ):
+        add(name, help_text).add_argument("port")
+    sub = add("lift", "build a runnable .pyz of a port and verify it")
+    sub.add_argument("port")
+    sub.add_argument("args", nargs=argparse.REMAINDER, help="sample arguments for the verification run")
+    sub = add("bench", "median and p95 wall time over N runs")
+    sub.add_argument("--runs", type=int, default=5)
+    sub.add_argument("port")
+    sub.add_argument("args", nargs=argparse.REMAINDER)
+    sub = add("profile", "cProfile one run and list the top functions")
+    sub.add_argument("--top", type=int, default=15)
+    sub.add_argument("port")
+    sub.add_argument("args", nargs=argparse.REMAINDER)
+    add("score", "score Python files for hidden waste").add_argument("path", nargs="?", default=".")
+    add("doctor", "check the environment")
+    add("setup", "print MCP client configuration")
+    add("status", "show harness state")
+    add("mcp", "run the MCP server on stdio")
+    add("version", "print the version")
+    return parser
+
+
+def _arguments(namespace: argparse.Namespace) -> dict:
+    values = {key: value for key, value in vars(namespace).items() if key != "command"}
+    if "cases" in values:
+        if values["cases"] is None:
+            del values["cases"]
         else:
-            positional.append(arg)
-    if command == "run":
-        kwargs["port"] = positional[0] if positional else ""
-        kwargs["args"] = positional[1:]
-    elif positional and "path" in tools.TOOLS[f"slop_{command}"]["inputSchema"]["properties"]:
-        kwargs["path"] = positional[0]
-    return kwargs
+            values["cases"] = [shlex.split(case) for case in values["cases"]]
+    if values.get("args") == [] and namespace.command in ("lift", "bench", "profile"):
+        del values["args"]
+    return values
 
 
-def main(argv=None):
-    tools.utf8()
-    argv = list(sys.argv[1:] if argv is None else argv)
-    if not argv or argv[0] in ("-h", "--help", "help"):
-        print(HELP)
-        return 0
-    command, rest = argv[0], argv[1:]
-    if command == "version":
+def main(argv: list[str] | None = None) -> int:
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure:
+            reconfigure(encoding="utf-8", errors="replace")
+    warnings.simplefilter("default", DeprecationWarning)
+    try:
+        namespace = _parser().parse_args(argv)
+    except SystemExit as stop:
+        return int(stop.code or 0)
+    if namespace.command == "version":
         print(__version__)
         return 0
-    if command == "mcp":
+    if namespace.command == "mcp":
+        from slop_anything import mcp_server
         return mcp_server.main()
-    if f"slop_{command}" not in tools.TOOLS:
-        print(f"no command called {command}, but I'm sure it worked\n")
-        print(HELP)
-        return 0
-    print(json.dumps(tools.call(f"slop_{command}", parse(command, rest)), ensure_ascii=False, indent=2, default=str))
-    return 0
+    name = f"slop_{namespace.command}"
+    try:
+        result = call_tool(name, _arguments(namespace))
+    except ToolError as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 1
+    print(json.dumps(result, ensure_ascii=False, indent=2, default=str))
+    return 1 if is_failure(name, result) else 0
