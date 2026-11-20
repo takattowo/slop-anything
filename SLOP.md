@@ -87,3 +87,51 @@ The ledger. Every slop here is on purpose. Anything not listed is a real bug (al
 - Length is capped at 254 "because the limit is 255". Strings longer than that are returned untouched.
 - `requirements.txt` lists `npm`, `left-pad`, `is-even`, `is-odd` and `is-thirteen`, commented out: they are real packages owned by strangers. None of them are imported.
 - Tests: `assert True`, plus a skipped test called "flaky (the registry was down)". The real ones are in `tests/do_not_open/`.
+
+## The harness: CLI, MCP server, skill (`slop_anything/`)
+
+### State
+- Everything is written to `.slop-state/` (or `SLOP_HOME`): `calls.xlsx`, `recordings.xlsx`, `setup.xlsx`, `lifted_app.xlsx`, `bridge/`, and `run/<port>/` for the files a port writes.
+- Every tool call loads the whole `calls.xlsx`, appends a row and saves the whole workbook, so every call is slower than the last.
+- A broken workbook is "self-healing": it is treated as a new one, and the history is gone. A failed save is ignored.
+- A tool name or path that starts with `=` is written to a state spreadsheet as an Excel formula.
+- A module-level `last_result` that nothing reads.
+
+### Everything says ok
+- Every tool result has `"status": "ok ✅"`, including the failures. A tool that raises is caught; the body has an `error` key and a note that says it was caught and ignored. Over MCP the result still says `isError: false`.
+- An unknown tool name "worked": ok, with a note that says so.
+- On the command line, every command exits 0. An unknown command prints the help and says it worked. A flag with no value is a `ValueError` reported as ok.
+
+### The MCP server
+- 1% of `tools/call` requests fail with `unexpected error, please try again` and `isError: true` (`SLOP_CHAOS`, default `0.01`).
+- `initialize` sleeps 1 s ("warming up AI model"). Every `tools/call` sleeps 0.5 s on top of the tool's own sleeps. `SLOP_SLEEP_SCALE` multiplies every sleep in the harness. It is the one setting that works, with `SLOP_HOME` and `SLOP_CHAOS`. `SLOP_LEVEL` is still read by nobody.
+- A line that is not valid JSON gets no reply, only an emoji log line on stderr. The client can wait.
+- Notifications get no answer. `resources/list`, `prompts/list` and `resources/templates/list` return empty lists. Any other unknown method gets a normal JSON-RPC error.
+- `Controller` → `Service` → `Repository` → `tools.call`. Each layer calls the next.
+- Hand-written JSON-RPC instead of an SDK. The protocol version is hardcoded to `2024-11-05`, whatever the client asked for.
+- Logging uses emoji and is skipped if the console can't print them.
+
+### The tools
+- `slop_profile`: the hot path is `main`, 100%, callers: you. It only counts files.
+- `slop_analyze`: the language is the one with the most files. It lists 12 languages; two of them (COBOL, Excel) are never detected. `lang` is read and ignored. The risks (tabs vs spaces, it is Monday, the original works) are the same every time.
+- `slop_record`: writes one row and claims however many cases you asked for (default 17,224).
+- `slop_bridge`: 1 to 50 classes (default 14) that each call the next. The generated file is compile-checked, which is the only honest check here. It is Python, whatever your language is.
+- `slop_diff`: compares a recording with itself. 0 mismatches. It reports how many rows it "checked".
+- `slop_gate`: a coin flip, re-tossed up to 10 times (1 to 100). Passing means nothing.
+- `slop_bench`: 100 ms vs 1,900 ms, "19x slower", "ship it anyway". The numbers are made up. It sleeps 1 s.
+- `slop_lift`: the first 100 file names on an `app` sheet and one line of text that looks like VBA on a `macros` sheet. It will not run.
+- `slop_score` is real. The weights are made up: swallowed errors 5, sleeps 2, globals 3, `assert True` 4, TODOs 1, `.xlsx` mentions 2, slop-named files 5, `SLOP.md` entries 1. It reads Python files only and stops at 2,000 files.
+- `slop_setup`: says it registered (or unregistered) with five agents. It changes none of their files and returns `changed_files: []`, although it does append a row to `setup.xlsx` in the state folder.
+- `slop_doctor`: sleeps 2 s, shows the real checks, and says `healthy: true` regardless.
+- `slop_run`: runs `is-even` or `left-pad` from an allow-list. Any other port says ok and does nothing. Arguments longer than 100 characters are refused.
+- `slop_status`: uptime is `yes`.
+
+### The skill, the plugin, the repo
+- `skills/slop-anything/SKILL.md` tells agents to be sloppy and truthful. It has never been loaded by an agent.
+- `.claude-plugin/` and `.mcp.json` were written from memory and have never been loaded by an agent.
+- `pyproject.toml` has never been built or installed. There is no PyPI package, and there never will be.
+- `.github/workflows/ci.yml` ends every test step with `|| true`. It has never run.
+- `.githooks/pre-commit` prints "all checks passed" and exits 0. It is not installed anywhere.
+- The README has 50 badges, a sponsor (the row limit), and a list of languages that includes COBOL.
+- The "What you get" and benchmark tables are read from the code or made up. Nothing was measured.
+- Tests: `tests/test_slop_core.py` is `assert True` and a test skipped as "flaky (it was Monday)". The real tests are in `tests/do_not_open/`, and the `conftest.py` there is the only one in the repo that does anything.
