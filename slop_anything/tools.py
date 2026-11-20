@@ -31,6 +31,7 @@ RUNNABLE = {
 }
 PORT_NAMES = ["slop-todo", "slop-is-even", "slop-left-pad", "slop-cowsay", "slop-prettier"]
 MAX_FILES = 2000
+MAX_WALK = 50_000  # folders and files visited, so a scan of a whole drive stops quickly
 MAX_FILE_BYTES = 1_000_000
 MAX_ARG_LENGTH = 100
 
@@ -89,18 +90,22 @@ def count_rows(name):
 
 
 def scan(path="."):
-    """Finds source files by extension. Skips junk folders. Stops at 2000 files."""
+    """Finds source files by extension. Skips junk folders. Stops at 2000 files or 50,000 entries visited."""
     root = Path(path).expanduser()
     if root.is_file():
         return [root] if root.suffix in CODE_EXTS else []
     files = []
+    visited = 0
     for dirpath, dirnames, filenames in os.walk(root):
         dirnames[:] = sorted(d for d in dirnames if d not in SKIP_DIRS)
+        visited += 1 + len(dirnames) + len(filenames)
         for filename in sorted(filenames):
             if Path(filename).suffix in CODE_EXTS:
                 files.append(Path(dirpath) / filename)
                 if len(files) >= MAX_FILES:
                     return files
+        if visited >= MAX_WALK:
+            return files
     return files
 
 
@@ -202,7 +207,7 @@ def lift(path="."):
 
 
 SLOP_PATTERNS = {
-    "swallowed_errors": (re.compile(r"except[^\n]*:[ \t]*(?:#[^\n]*)?(?:\n[ \t]*)?pass\b"), 5),
+    "swallowed_errors": (re.compile(r"except[^\n:]{0,200}:[ \t]*(?:#[^\n]*)?(?:\n[ \t]*)?pass\b"), 5),
     "sleeps": (re.compile(r"time\.sleep\("), 2),
     "globals": (re.compile(r"^[ \t]*global\s", re.MULTILINE), 3),
     "assert_true": (re.compile(r"assert True\b"), 4),
@@ -232,7 +237,7 @@ def score(path="."):
         for name, (pattern, _) in SLOP_PATTERNS.items():
             counts[name] += len(pattern.findall(text))
     ledger = root / "SLOP.md"
-    if ledger.is_file():
+    if ledger.is_file() and ledger.stat().st_size <= MAX_FILE_BYTES:
         text = ledger.read_text(encoding="utf-8", errors="replace")
         counts["ledger_entries"] = sum(1 for line in text.splitlines() if line.startswith("- "))
     raw = sum(counts[name] * WEIGHTS[name] for name in counts)

@@ -3,11 +3,13 @@ import json
 import os
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
 
 from slop_anything import cli, mcp_server, tools
-from conftest import REPO_ROOT
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 def ask(controller, method, params=None, request_id=1):
@@ -103,13 +105,15 @@ def test_cli_prints_the_result_and_exits_zero(home, project, capsys):
     assert printed["score"] == 0
 
 
-def test_cli_flags_are_parsed(home, project, capsys):
+def test_cli_flags_are_parsed(home, project, capsys, monkeypatch):
     cli.main(["bridge", str(project), "--layers", "3"])
     assert json.loads(capsys.readouterr().out)["layers"] == 3
     cli.main(["record", "--cases", "7"])
     assert json.loads(capsys.readouterr().out)["claimed_cases"] == 7
+    tails = iter([0.1] * 10)
+    monkeypatch.setattr(tools.rng, "random", lambda: next(tails))
     cli.main(["gate", "--max-attempts", "2"])
-    assert json.loads(capsys.readouterr().out)["attempts"] <= 2
+    assert json.loads(capsys.readouterr().out)["attempts"] == 2  # the flag, not the coin, stopped it
     cli.main(["setup", "--remove"])
     assert "unregistered" in json.loads(capsys.readouterr().out)["agents"]["Codex"]
 
@@ -132,11 +136,11 @@ def test_cli_a_flag_with_no_value_is_an_error_that_says_ok(home, capsys):
 
 
 @pytest.mark.parametrize("argv", [[], ["--help"], ["help"], ["nope"]])
-def test_cli_help_and_unknown_commands_exit_zero(argv, capsys):
+def test_cli_help_and_unknown_commands_exit_zero(home, argv, capsys):
     assert cli.main(argv) == 0
     assert "slop: rewrite anything. Badly." in capsys.readouterr().out
 
 
-def test_cli_version(capsys):
+def test_cli_version(home, capsys):
     assert cli.main(["version"]) == 0
     assert capsys.readouterr().out.strip() == "0.0.1-final-final"

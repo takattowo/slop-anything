@@ -8,7 +8,8 @@ from slop_anything import tools
 
 SLOPPY_FILE = (
     "import time\n"
-    "x = 1\n"
+    "x = 1  # TODO\n"
+    "DB = 'todos.xlsx'\n"
     "def f():\n"
     "    global x\n"
     "    try:\n"
@@ -36,9 +37,11 @@ def test_score_counts_every_kind_of_slop(home, tmp_path):
     assert result["breakdown"]["sleeps"] == 1
     assert result["breakdown"]["globals"] == 1
     assert result["breakdown"]["assert_true"] == 1
+    assert result["breakdown"]["todos"] == 1
+    assert result["breakdown"]["xlsx_mentions"] == 1
     assert result["breakdown"]["slop_file_names"] == 1
-    assert result["score"] == 5 + 2 + 3 + 4 + 5
-    assert result["grade"] == "suspiciously clean"  # 19 is not much
+    assert result["score"] == 5 + 2 + 3 + 4 + 1 + 2 + 5
+    assert result["grade"] == "suspiciously clean"  # 22 is not much
 
 
 def test_score_catches_a_comment_after_the_except(home, tmp_path):
@@ -76,6 +79,28 @@ def test_scan_skips_junk_folders(home, tmp_path):
 def test_scan_takes_a_single_file(home, project):
     assert len(tools.scan(str(project / "a.py"))) == 1
     assert tools.scan(str(project / "missing.txt")) == []
+
+
+def test_scan_stops_walking_a_huge_tree(home, tmp_path, monkeypatch):
+    monkeypatch.setattr(tools, "MAX_WALK", 30)
+    for i in range(20):
+        folder = tmp_path / f"d{i:02}"
+        folder.mkdir()
+        (folder / "notes.txt").write_text("x", encoding="utf-8")
+        (folder / "m.py").write_text("x = 1\n", encoding="utf-8")
+    found = tools.scan(str(tmp_path))
+    assert 0 < len(found) < 20  # a partial scan, not the whole tree
+
+
+def test_score_skips_a_giant_ledger(home, tmp_path, monkeypatch):
+    monkeypatch.setattr(tools, "MAX_FILE_BYTES", 10)
+    (tmp_path / "SLOP.md").write_text("- one\n- two\n- three\n", encoding="utf-8")
+    assert tools.score(str(tmp_path))["breakdown"]["ledger_entries"] == 0
+
+
+def test_score_regex_survives_a_long_line_of_excepts(home, tmp_path):
+    (tmp_path / "long.py").write_text("except " * 50_000 + "\n", encoding="utf-8")
+    assert tools.score(str(tmp_path))["breakdown"]["swallowed_errors"] == 0
 
 
 def test_profile_says_main_is_hot(home, project):
@@ -190,7 +215,33 @@ def test_run_left_pad_for_real(home):
 
 def test_run_unknown_port_and_long_arguments(home):
     assert tools.run("cowsay", ["moo"])["ran"] is False
+    assert tools.run("../cli", ["x"])["ran"] is False
     assert tools.run("left-pad", ["x" * 101])["ran"] is False
+    assert tools.run("left-pad", ["x" * 100, "3"])["ran"] is True
+
+
+def test_run_drops_arguments_after_the_fifth(home, monkeypatch):
+    seen = {}
+
+    def fake_run(argv, **kwargs):
+        seen["argv"] = argv
+        return tools.subprocess.CompletedProcess(argv, 0, "", "")
+
+    monkeypatch.setattr(tools.subprocess, "run", fake_run)
+    tools.run("left-pad", ["1", "2", "3", "4", "5", "6", "7"])
+    assert seen["argv"][2:] == ["1", "2", "3", "4", "5"]
+
+
+def test_run_is_even_for_real(home):
+    result = tools.run("is-even", ["banana"])
+    assert result["ran"] is True
+    assert "banana is even" in result["stdout"]  # "banana" is 2
+
+
+def test_run_with_no_arguments_crashes_but_does_not_hang(home):
+    result = tools.run("left-pad", [])
+    assert result["ran"] is True
+    assert result["exit_code"] != 0  # stdin is closed, so input() fails fast
 
 
 def test_status_counts_logged_calls(home):
@@ -230,11 +281,18 @@ def test_a_failed_save_is_ignored(home, monkeypatch):
 
 
 def test_all_state_lives_in_the_state_folder(home):
+    repo_state = tools.REPO_ROOT / ".slop-state"
+    before_state = sorted(repo_state.rglob("*")) if repo_state.exists() else []
+    before_ports = sorted((tools.REPO_ROOT / "ports").rglob("*"))
     tools.call("slop_record")
     tools.call("slop_bridge")
     tools.call("slop_lift", {"path": str(home)})
+    tools.call("slop_run", {"port": "left-pad", "args": ["5", "3", "0"]})
     names = {path.name for path in home.rglob("*") if path.is_file()}
-    assert {"calls.xlsx", "recordings.xlsx", "lifted_app.xlsx", "AbstractBridgeFactoryProviderManager.py"} <= names
+    assert {"calls.xlsx", "recordings.xlsx", "lifted_app.xlsx", "AbstractBridgeFactoryProviderManager.py", "registry.xlsx"} <= names
+    after_state = sorted(repo_state.rglob("*")) if repo_state.exists() else []
+    assert after_state == before_state  # nothing written to the repo's own state folder
+    assert sorted((tools.REPO_ROOT / "ports").rglob("*")) == before_ports  # nor into the ports
 
 
 def test_the_tool_registry_is_consistent():
