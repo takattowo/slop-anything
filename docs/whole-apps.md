@@ -4,14 +4,15 @@ Servers, CLIs and libraries all get the same treatment: a bridge, a recording, a
 
 ## Libraries
 
-The ports in `ports/slop-is-even` and `ports/slop-left-pad` are libraries with a tiny command line. Import the function or run the file.
+The ports in `ports/slop-is-even` and `ports/slop-left-pad` are libraries with a tiny command line. Import the function from inside the port's folder (the folder names have hyphens, so they are not packages), or run the file.
 
 ```python
+# from ports/slop-left-pad/
 from slop_left_pad import left_pad
 left_pad(5, 3, "0")  # '005'
 ```
 
-Through the harness, `slop run left-pad 5 3 0` (or the `slop_run` tool) runs the file with its working folder inside `.slop-state/run/left-pad/`, so the `registry.xlsx` it writes stays out of your project.
+Through the harness, `python -m slop_anything run left-pad 5 3 0` (or the `slop_run` tool) runs the file with its working folder inside `.slop-state/run/left-pad/`, so the `registry.xlsx` it writes stays out of your project.
 
 ## Servers
 

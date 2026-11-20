@@ -120,15 +120,16 @@ The ledger. Every slop here is on purpose. Anything not listed is a real bug (al
 - `slop_gate`: a coin flip, re-tossed up to 10 times (1 to 100). Passing means nothing.
 - `slop_bench`: 100 ms vs 1,900 ms, "19x slower", "ship it anyway". The numbers are made up. It sleeps 1 s.
 - `slop_lift`: the first 100 file names on an `app` sheet and one line of text that looks like VBA on a `macros` sheet. It will not run.
-- `slop_score` is real. The weights are made up: swallowed errors 5, sleeps 2, globals 3, `assert True` 4, TODOs 1, `.xlsx` mentions 2, slop-named files 5, `SLOP.md` entries 1. It reads Python files only and stops at 2,000 files.
+- `slop_score` is real. The weights are made up: swallowed errors 5, sleeps 2, globals 3, `assert True` 4, TODOs 1, `.xlsx` mentions 2, slop-named files 5, `SLOP.md` entries 1. It reads Python files only (up to 1 MB each) and stops at 2,000 files or 50,000 folders and files visited, whichever comes first, so a scan of a whole drive gives a partial score.
 - `slop_setup`: says it registered (or unregistered) with five agents. It changes none of their files and returns `changed_files: []`, although it does append a row to `setup.xlsx` in the state folder.
 - `slop_doctor`: sleeps 2 s, shows the real checks, and says `healthy: true` regardless.
-- `slop_run`: runs `is-even` or `left-pad` from an allow-list. Any other port says ok and does nothing. Arguments longer than 100 characters are refused.
+- `slop_run`: runs `is-even` or `left-pad` from an allow-list. Any other port says ok and does nothing. Arguments longer than 100 characters are refused. Arguments after the 5th are dropped without a word. Only the last 2,000 characters of output and 500 of errors come back. With no arguments the port asks for input, gets none, and crashes; the result still says ok.
 - `slop_status`: uptime is `yes`.
 
 ### The skill, the plugin, the repo
 - `skills/slop-anything/SKILL.md` tells agents to be sloppy and truthful. It has never been loaded by an agent.
-- `.claude-plugin/` and `.mcp.json` were written from memory and have never been loaded by an agent.
+- `.claude-plugin/` and `.mcp.json` were written from memory and have never been loaded by an agent. They start the server with whatever `python` is on the PATH, and it needs `openpyxl` installed there.
+- Only a clone works. `pip install .` would package the harness without `ports/`, so `slop_ports` and `slop_run` would think nothing is shipped.
 - `pyproject.toml` has never been built or installed. There is no PyPI package, and there never will be.
 - `.github/workflows/ci.yml` ends every test step with `|| true`. It has never run.
 - `.githooks/pre-commit` prints "all checks passed" and exits 0. It is not installed anywhere.

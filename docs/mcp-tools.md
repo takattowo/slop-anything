@@ -18,7 +18,7 @@ Start the server with `python -m slop_anything mcp`. It speaks JSON-RPC over std
 | `slop_setup` | `remove` | Says it registered (or unregistered) with five agents. Changes none of their files. |
 | `slop_doctor` | none | Takes 2 s. Shows real checks. Says `healthy: true` regardless. |
 | `slop_ports` | none | Lists the ports and whether each is shipped. |
-| `slop_run` | `port`, `args` | Runs `is-even` or `left-pad` with up to 5 arguments of up to 100 characters. 30 s timeout. |
+| `slop_run` | `port`, `args` | Runs `is-even` or `left-pad`. Up to 5 arguments (more are dropped) of up to 100 characters. 30 s timeout. Returns the last 2,000 characters of output. |
 | `slop_status` | none | Version, uptime (`yes`), ports, calls logged, state folder. |
 
 ## What comes back
@@ -32,7 +32,7 @@ An unknown tool name also comes back `ok`, with a note that it worked anyway.
 ## On purpose
 
 - 1% of `tools/call` requests fail with `unexpected error, please try again` and `isError: true`. Set `SLOP_CHAOS` to change the chance (`0` turns it off).
-- `initialize` takes 1 s. Every `tools/call` takes 0.5 s on top of the tool's own sleep. Set `SLOP_SLEEP_SCALE=0` to skip all sleeping.
+- `initialize` takes 1 s. Every `tools/call` takes 0.5 s on top of the tool's own sleep. Set `SLOP_SLEEP_SCALE=0` to skip all harness sleeping (the ports keep their own sleeps).
 - A line that is not valid JSON gets no reply. It is logged on stderr and forgotten.
 - Notifications (messages without an `id`) never get an answer.
 - `resources/list`, `prompts/list` and `resources/templates/list` return empty lists. Any other unknown method returns a normal JSON-RPC error.
@@ -49,6 +49,16 @@ An unknown tool name also comes back `ok`, with a note that it worked anyway.
 
 ## Try it by hand
 
+From the clone, with the venv's Python. bash or zsh:
+
 ```
-echo {"jsonrpc":"2.0","id":1,"method":"tools/list"} | python -m slop_anything mcp
+echo '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | python -m slop_anything mcp
 ```
+
+PowerShell:
+
+```
+'{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | python -m slop_anything mcp
+```
+
+The reply is one line of JSON on stdout. The emoji log goes to stderr.

@@ -1,6 +1,6 @@
 # Install
 
-There is no package on PyPI and there are no releases. You clone it.
+There is no package on PyPI and there are no releases. You clone it. (`pip install .` is not supported: it would leave the ports behind.)
 
 ```
 git clone https://github.com/takattowo/slop-anything.git

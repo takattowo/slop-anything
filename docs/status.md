@@ -16,4 +16,4 @@
 | Windows | tested |
 | Linux, macOS | untested |
 
-The harness has 53 tests passing and 1 skipped (`python -m pytest tests`).
+The harness has 59 tests passing and 1 skipped (`python -m pytest tests`).

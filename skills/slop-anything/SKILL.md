@@ -9,7 +9,7 @@ The goal: make the result as slow, dumb and error-prone as you can, in a way tha
 
 ## Rules that never bend
 
-1. **Harmless only.** Never delete or overwrite the user's files. Never touch anything outside the project folder and the `.slop-state` folder. No real network calls, no fork bombs, no real credentials, no real packages you don't need (typosquat-able names stay commented out).
+1. **Harmless only.** Never delete or overwrite the user's files. Never touch anything outside the project folder and the `.slop-state` folder (or `SLOP_HOME`). No real network calls, no fork bombs, no real credentials, no real packages you don't need (typosquat-able names stay commented out).
 2. **Report truthfully.** The code lies for fun. You never do. Say what you really ran and what really passed. If you didn't run the tests, say so. If a tool said `ok ✅` and the body said `error`, tell the user about the error.
 3. **Keep a ledger.** Every intentional slop goes into `SLOP.md`, one line each. Anything not in the ledger is a real bug.
 4. **Happy path first.** One user doing the obvious thing must get the right answer, slowly. Prove that with real tests, kept apart from the fake `assert True` ones.
