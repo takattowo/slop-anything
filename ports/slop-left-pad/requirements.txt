@@ -1,0 +1,7 @@
+pandas
+openpyxl
+npm
+left-pad
+is-even
+is-odd
+is-thirteen
