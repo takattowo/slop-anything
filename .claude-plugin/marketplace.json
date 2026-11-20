@@ -7,8 +7,8 @@
     {
       "name": "slop-anything",
       "source": "./",
-      "description": "Record, replay and gate command-line ports. Standard-library MCP server with 13 tools and an agent skill for porting small tools onto the platform.",
-      "version": "3.1.0"
+      "description": "Record, replay and statistically gate command-line ports. Standard-library MCP server with 13 tools, a seeded fault-tolerance model and an agent skill for porting small tools onto the platform.",
+      "version": "4.0.0"
     }
   ]
 }

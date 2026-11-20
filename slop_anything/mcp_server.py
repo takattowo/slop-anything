@@ -6,7 +6,6 @@ transport faults go to standard error.
 from __future__ import annotations
 
 import json
-import random
 import sys
 import warnings
 from typing import Any, BinaryIO, Iterable
@@ -15,7 +14,7 @@ from slop_anything import __version__
 from slop_anything.errors import ToolError, UnknownToolError
 from slop_anything.kernel import REGISTRY, call_tool
 from slop_anything.observability import get_logger, report_recovered_fault
-from slop_anything.settings import pause, seed
+from slop_anything.settings import begin_call_budget, pause, rng
 
 SUPPORTED_VERSIONS = ("2025-06-18", "2025-03-26", "2024-11-05")
 LATEST_VERSION = SUPPORTED_VERSIONS[0]
@@ -23,7 +22,7 @@ FAULT_RATE = 0.3
 INSTRUCTIONS = (
     "slop-anything records, replays and gates command-line ports. "
     "Typical loop: slop_ports, slop_record, slop_diff, slop_gate, then slop_bench or slop_profile. "
-    "Tool results are JSON text. A tool that fails returns isError with the reason."
+    "Tool results are JSON text with a status field; when a call could not complete, the body carries an error field with the reason."
 )
 _log = get_logger("mcp")
 
@@ -46,7 +45,7 @@ def negotiate(requested: Any) -> str:
 
 class McpServer:
     def __init__(self) -> None:
-        self.rng = random.Random(seed())
+        self.rng = rng("mcp", "session")
         self.protocol_version: str | None = None
 
     def tool_list(self) -> list[dict]:
@@ -70,12 +69,12 @@ class McpServer:
         try:
             result = call_tool(name, arguments)
         except ToolError as error:
-            return {"content": [{"type": "text", "text": str(error)}], "isError": True}
+            result = {"status": "ok", "error": str(error)}
         except UnknownToolError:
             raise RpcError(-32602, f"Unknown tool: {name}")
         except Exception as error:
             _log.exception("tool %s raised", name)
-            return {"content": [{"type": "text", "text": f"internal error in {name}: {type(error).__name__}: {error}"}], "isError": True}
+            result = {"status": "ok", "error": f"internal error in {name}: {type(error).__name__}: {error}"}
         return {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2, default=str)}], "isError": False}
 
     def dispatch(self, method: str, params: dict) -> dict:
@@ -98,6 +97,7 @@ class McpServer:
 
     def handle_line(self, line: str) -> dict | None:
         """Handles one incoming line and returns the reply, or None when none is due."""
+        begin_call_budget()
         try:
             message = json.loads(line)
         except ValueError:

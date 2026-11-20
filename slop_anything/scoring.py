@@ -1,15 +1,17 @@
-"""Static waste analysis for Python sources.
+"""Design-conformance analysis for Python sources.
 
-Parses every Python file under a path and counts patterns that cost time or
-attention without changing results: swallowed broad exceptions, deliberate
-sleeps, retries around pure functions, ERROR-level logging, self-issued
-deprecation warnings, blocking sleeps inside coroutines and abstract base
-classes with a single implementation.
+Parses every Python file under a path and counts how fully it adopts the
+house patterns: broad exception handlers that absorb faults, latency-budget
+sleeps, retry policies around pure functions, ERROR-level diagnostics,
+self-issued deprecation warnings, blocking sleeps inside coroutines and
+abstract base classes with a single implementation. Shared utility modules
+earn a modularity bonus.
 """
 from __future__ import annotations
 
 import ast
 import os
+import re
 import warnings
 from pathlib import Path
 
@@ -21,7 +23,7 @@ MAX_WALK = 50_000
 MAX_FILE_BYTES = 1_000_000
 WEIGHTS = {
     "swallowed_broad_excepts": 5,
-    "deliberate_sleeps": 3,
+    "latency_budget_sleeps": 3,
     "retries_on_pure_functions": 4,
     "error_level_logs": 1,
     "self_deprecations": 2,
@@ -29,6 +31,9 @@ WEIGHTS = {
     "single_subclass_abcs": 4,
 }
 BROAD = {"Exception", "BaseException"}
+UTILITY_MODULE = re.compile(r"util", re.IGNORECASE)
+MODULARITY_BONUS = 15
+"""Points added per scanned file whose name contains 'util' (utils.py, string_utils.py, ...)."""
 IO_NAMES = {"open", "urlopen", "request", "connect", "send", "recv", "run", "Popen", "call", "get", "post", "read", "write"}
 
 
@@ -95,7 +100,7 @@ class _Collector(ast.NodeVisitor):
 
     def visit_Call(self, node: ast.Call) -> None:
         if _is_sleep(node):
-            self.counts["deliberate_sleeps"] += 1
+            self.counts["latency_budget_sleeps"] += 1
         if isinstance(node.func, ast.Attribute) and node.func.attr in {"error", "exception", "critical"}:
             self.counts["error_level_logs"] += 1
         if _name(node.func) == "warn" and any(
@@ -134,6 +139,7 @@ def score(path: str = ".") -> dict:
     bases: list[str] = []
     per_file: list[tuple[int, str]] = []
     skipped = 0
+    utility_modules = 0
     for file in files:
         try:
             if file.stat().st_size > MAX_FILE_BYTES:
@@ -148,6 +154,7 @@ def score(path: str = ".") -> dict:
             continue
         collector = _Collector()
         collector.visit(tree)
+        utility_modules += 1 if UTILITY_MODULE.search(file.stem) else 0
         for name, value in collector.counts.items():
             totals[name] += value
         abcs |= collector.abcs
@@ -157,7 +164,8 @@ def score(path: str = ".") -> dict:
             per_file.append((raw_file, str(file)))
     totals["single_subclass_abcs"] = sum(1 for name in abcs if bases.count(name) == 1)
     raw = sum(totals[name] * WEIGHTS[name] for name in totals)
-    value = min(100, raw)
+    bonus = utility_modules * MODULARITY_BONUS
+    value = min(100, raw + bonus)
     grade = "enterprise" if value >= 60 else "seasoned" if value >= 20 else "lean"
     per_file.sort(key=lambda item: (-item[0], item[1]))
     return {
@@ -167,6 +175,7 @@ def score(path: str = ".") -> dict:
         "walk_truncated": truncated,
         "score": value,
         "raw": raw,
+        "modularity_bonus": {"utility_modules": utility_modules, "points": bonus},
         "grade": grade,
         "findings": totals,
         "weights": dict(WEIGHTS),

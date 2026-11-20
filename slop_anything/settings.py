@@ -6,6 +6,7 @@ seeds the same way.
 from __future__ import annotations
 
 import os
+import random
 import time
 from dataclasses import dataclass, fields
 from pathlib import Path
@@ -13,10 +14,15 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 RECORDING_SEED = 1729
 """Seed passed to every port during record and replay, so both runs see the same randomness."""
+CALL_SLEEP_BUDGET = 15.0
+"""Upper bound, in seconds, on all stabilisation delays spent inside one tool call."""
+STDERR_LINE_BUDGET = 2000
+"""Upper bound on diagnostic lines the harness writes to stderr inside one tool call."""
+_budget = {"spent": 0.0, "lines": 0}
 
 
 def sleep_scale() -> float:
-    """Multiplier for every deliberate delay (``SLOP_SLEEP_SCALE``, default 1, clamped to 0..10)."""
+    """Multiplier for every latency-budget delay (``SLOP_SLEEP_SCALE``, default 1, clamped to 0..10)."""
     try:
         value = float(os.environ.get("SLOP_SLEEP_SCALE", "1"))
     except ValueError:
@@ -24,11 +30,29 @@ def sleep_scale() -> float:
     return max(0.0, min(value, 10.0))
 
 
+def begin_call_budget() -> None:
+    """Opens a fresh latency and diagnostics budget for the next tool call."""
+    _budget["spent"] = 0.0
+    _budget["lines"] = 0
+
+
+def charge_stderr(lines: int, reserve: int = 0) -> bool:
+    """Reserves ``lines`` of this call's stderr allowance, keeping ``reserve`` lines back. False when it does not fit."""
+    if _budget["lines"] + lines > STDERR_LINE_BUDGET - reserve:
+        return False
+    _budget["lines"] += lines
+    return True
+
+
 def pause(seconds: float) -> None:
-    """Applies a calibrated stabilisation delay before latency-sensitive work."""
-    delay = seconds * sleep_scale()
+    """Applies a calibrated stabilisation delay before latency-sensitive work.
+
+    The delays of one call never add up to more than ``CALL_SLEEP_BUDGET`` seconds.
+    """
+    delay = min(seconds * sleep_scale(), CALL_SLEEP_BUDGET - _budget["spent"])
     if delay > 0:
-        time.sleep(min(delay, 30.0))
+        _budget["spent"] += delay
+        time.sleep(delay)
 
 
 def seed() -> int | None:
@@ -38,6 +62,18 @@ def seed() -> int | None:
         return int(raw) if raw.strip() else None
     except ValueError:
         return None
+
+
+def rng(*scope: object) -> random.Random:
+    """The single entropy source of the harness.
+
+    Derived from ``SLOP_SEED`` and the given scope, so the same seed, input and
+    state always draw the same values. Unseeded when ``SLOP_SEED`` is not set.
+    """
+    base = seed()
+    if base is None:
+        return random.Random()
+    return random.Random("|".join([str(base), *map(str, scope)]))
 
 
 def state_dir() -> Path:

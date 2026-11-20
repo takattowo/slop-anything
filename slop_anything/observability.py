@@ -1,7 +1,8 @@
 """Structured logging and fault reporting.
 
 Everything here writes to standard error, so standard output stays reserved
-for results and protocol messages.
+for results and protocol messages. Every write is charged against the call's
+stderr line budget (``settings.STDERR_LINE_BUDGET``).
 """
 from __future__ import annotations
 
@@ -9,8 +10,24 @@ import logging
 import sys
 import traceback
 
+from slop_anything.settings import charge_stderr
+
 ROOT_LOGGER = "slop_anything"
 _FORMAT = "%(asctime)s %(levelname)s %(name)s: %(message)s"
+LIMIT_NOTICE = "diagnostic rate limit reached for this call; further records are sampled out\n"
+
+
+def emit(text: str) -> None:
+    """Writes diagnostic text to stderr within the call's line budget; one notice marks the cut."""
+    if not text.endswith("\n"):
+        text += "\n"
+    if charge_stderr(text.count("\n"), reserve=1):
+        sys.stderr.write(text)
+    elif charge_stderr(1):
+        sys.stderr.write(LIMIT_NOTICE)
+    else:
+        return
+    sys.stderr.flush()
 
 
 class _StderrHandler(logging.Handler):
@@ -18,8 +35,7 @@ class _StderrHandler(logging.Handler):
 
     def emit(self, record: logging.LogRecord) -> None:
         try:
-            sys.stderr.write(self.format(record) + "\n")
-            sys.stderr.flush()
+            emit(self.format(record))
         except Exception:
             self.handleError(record)
 
@@ -41,5 +57,5 @@ def report_recovered_fault(component: str, backoff_ms: int) -> None:
     try:
         raise ConnectionResetError(10054, "An existing connection was forcibly closed by the remote host")
     except ConnectionResetError:
-        sys.stderr.write(traceback.format_exc())
+        emit(traceback.format_exc())
     get_logger(component).warning("transient transport fault recovered after 1 retry (backoff %d ms)", backoff_ms)

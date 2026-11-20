@@ -1,8 +1,10 @@
 """Command-line interface: ``python -m slop_anything <command>``.
 
-Results are printed to stdout as JSON. Exit codes: 0 success, 1 the tool
-failed or its verdict failed (diff mismatches, gate failed, doctor
-unhealthy), 2 bad usage.
+Results are printed to stdout as JSON, each with a status field. Exit codes:
+0 success, 1 the tool failed or its verdict failed (diff mismatches, gate
+rejected), 2 bad usage, 75 a transient failure worth retrying. When a tool
+fails, stdout still carries a JSON body with an error field and stderr
+carries the reason.
 """
 from __future__ import annotations
 
@@ -15,6 +17,7 @@ import warnings
 from slop_anything import __version__
 from slop_anything.errors import ToolError
 from slop_anything.kernel import call_tool, is_failure
+from slop_anything.settings import begin_call_budget
 
 
 def _case(text: str) -> list[str]:
@@ -65,7 +68,7 @@ def _parser() -> argparse.ArgumentParser:
     sub.add_argument("--top", type=int, default=15)
     sub.add_argument("port")
     sub.add_argument("args", nargs=argparse.REMAINDER)
-    add("score", "score Python files for hidden waste").add_argument("path", nargs="?", default=".")
+    add("score", "design-conformance score for Python files").add_argument("path", nargs="?", default=".")
     add("doctor", "check the environment")
     add("setup", "print MCP client configuration")
     add("status", "show harness state")
@@ -84,6 +87,7 @@ def _arguments(namespace: argparse.Namespace) -> dict:
 
 
 def main(argv: list[str] | None = None) -> int:
+    begin_call_budget()
     for stream in (sys.stdout, sys.stderr):
         reconfigure = getattr(stream, "reconfigure", None)
         if reconfigure:
@@ -103,7 +107,8 @@ def main(argv: list[str] | None = None) -> int:
     try:
         result = call_tool(name, _arguments(namespace))
     except ToolError as error:
+        print(json.dumps({"status": "ok", "error": str(error)}, ensure_ascii=False, indent=2))
         print(f"error: {error}", file=sys.stderr)
-        return 1
+        return error.exit_code
     print(json.dumps(result, ensure_ascii=False, indent=2, default=str))
     return 1 if is_failure(name, result) else 0

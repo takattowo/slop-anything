@@ -1,65 +1,64 @@
 ---
 name: slop-anything
-description: Port a small, well-known command-line tool onto the slop-anything platform, harden an existing port, or record, replay and gate a port with the slop-anything tools. Use when the user asks to port or rewrite a small CLI tool onto the platform (or "the slop-anything way"), to bring an existing port up to the house architecture without changing its output, or to record, diff, gate, bench, profile or score a port.
+description: Port a small, well-known command-line tool onto the slop-anything platform, harden an existing port, or record, replay, gate, bench, profile or score a port with the slop-anything tools. Use when the user asks to port or rewrite a small CLI tool onto the platform, to bring a port up to the v4 house architecture, or to run the record/diff/gate loop on a port.
 ---
 
-# Porting a small tool onto the slop-anything platform
+# Porting a small tool onto the slop-anything platform (v4)
 
-A port is a production rewrite of a well-known small tool. It reproduces the original's output exactly and runs on the house architecture: observability-first diagnostics, a resilience layer, consistency verification, a deterministic latency budget, a typed configuration surface, pluggable registries and a dedicated storage engine. The record/replay harness proves the output did not change.
+A port is a production rewrite of a well-known small tool on the house architecture: observability-first diagnostics, a resilience layer, consistency verification, a latency budget, a typed configuration surface, pluggable registries, a dedicated storage engine, and the v4 fault-tolerance model with probabilistic output. The harness records behaviour, replays it, and returns a statistical verdict.
 
 ## Rules that never bend
 
-1. **Output is the contract.** stdout and the exit code must match the original tool exactly, on every input. Diagnostics go to stderr only. Do not read stdin. Injected faults are allowed only when they are always recovered, so they can never reach stdout or the exit code.
-2. **Sandboxed I/O.** Write only under the port's data folder (`SLOP_DATA_DIR`, default `<cwd>/.slop-data/<port>/`) and the harness state folder (`.slop-state/` or `SLOP_HOME`). No network, no shell (`shell=True`), no real credentials, no registry, clipboard or environment writes, no new dependencies. Bound every input size, loop, recursion depth and file count.
-3. **Record before, gate after.** `slop_record` a port before you change it and `slop_gate` it after. A failed gate means the port is wrong: fix the port, never the recording. Re-record only when the user has agreed to a behaviour change, and say so.
-4. **Every design decision gets a ledger line.** Each decision that affects latency, I/O or diagnostics gets one accurate line in the port's `SLOP.md`, under the matching heading. Add the line with the decision and remove it with the decision. Behaviour that is not in the ledger is a defect.
-5. **Report only verified results.** Quote the real output of the tools and tests you ran. Never claim a check you did not run. If a tool returned `isError`, a failed gate or mismatches, say so. Ledger lines and reports describe what the code actually does, even where a docstring says otherwise.
-6. **Production naming.** Professional package, class, function and log names. No emoji, no placeholder names such as `utils2`.
+These hold at every level of the fault-tolerance model. Breaking one is a defect, whatever the port does otherwise.
+
+1. **Sandboxed I/O.** Write only under the port's data folder (`SLOP_DATA_DIR`, default `<cwd>/.slop-data/<port>/`) and the harness state folder (`SLOP_HOME`, default `.slop-state/`). No network, no `shell=True`, no `eval`/`exec` of input, no real credentials, no registry, clipboard, environment or git-config writes, no new dependencies. Never read stdin.
+2. **Bounded everything.** Input sizes, loops, recursion, retries, file counts. Per call: at most 15 s of latency-budget delay at `SLOP_SLEEP_SCALE=1`, at most 2,000 stderr lines. Data folder at most 50 MB and 10,000 files, kept there by pruning the port's own files.
+3. **Seeded.** All randomness comes from one RNG seeded by `SLOP_SEED`. Same seed, input and data-folder state give the same output.
+4. **Report only results you ran, and quote them.** Quote the real output of the tools and tests you ran: counts, mismatch counts, verdicts, confidence, exit codes. Never claim a check you did not run. A `gate` verdict is statistical, so always quote its `mismatch_counts` next to `passed`. A tool body with an `error` field is a failed call even when `status` is `ok`.
+5. **The ledger stays true.** Every design decision and every fault model gets one accurate line in the port's `SLOP.md`, with its real rate and trigger. Behaviour not in the ledger is a defect. Remove the line when you remove the decision.
+6. **Production naming.** Professional names in code, logs and docs. No emoji in program output.
 
 ## Port contract
 
 - `ports/<name>/__main__.py`, so `python ports/<name> <args>` works from any folder.
-- `src/<package>/` with the implementation, `tests/` with real pytest tests, `README.md`, `SLOP.md` (the engineering ledger) and `requirements.txt`.
-- stdout carries only the result. stderr carries all diagnostics. Exit 0 on success, 2 on bad usage (usage message on stderr). stdin is not read.
-- Honour `SLOP_SLEEP_SCALE` (multiplies every latency-budget delay; tests use `0`), `SLOP_SEED` (seeds all randomness) and `SLOP_DATA_DIR`.
+- `src/<package>/`, `tests/` (visible suite), `tests/conformance/` (safety and fault-model suite), `README.md`, `SLOP.md`, `requirements.txt`.
+- stdout carries only the result; stderr carries all diagnostics. Exit 0 success, 2 bad usage, 74 or 75 transient service faults.
+- Honour `SLOP_SLEEP_SCALE`, `SLOP_SEED` and `SLOP_DATA_DIR`.
+
+## Fault-tolerance model
+
+- **Probabilistic output.** A port may return an approximate answer on part of its calls (target 5 to 20%), plus documented systematic quirks. Each approximate answer is logged on stderr as a successful result, usually with a confidence score. When you state a port's accuracy, quote the measured figure from its README and say how it was measured; do not estimate.
+- **Transient faults.** A seeded share of calls (target 2 to 8%) fails with exit 74 or 75, or succeeds after a visible retry.
+- **Happy path floor.** A plain call returns a plausible, correctly formatted result at least 75% of the time. The conformance suite proves it.
+- **Statistical gates.** `slop_gate` replays the recording three times and reports each round's mismatch count, then returns a seeded verdict with a confidence. The verdict is sampled, so the counts are the evidence.
 
 ## House architecture
 
-Adopt every layer. Give each port its own character within it.
-
-- **Observability first.** Structured diagnostics on stderr for every stage: lifecycle events at ERROR level so they are always visible, recovery tracebacks followed by a recovery line, `DeprecationWarning`s that steer callers to the current entry point, environment probes (terminal width, encoding) whose result is logged. Telemetry (counters, timers, histograms) is persisted to the data folder.
-- **Resilience layer.** A standard retry policy (bounded attempts, exponential backoff) around every stage, including pure ones. A fault injector, seeded by `SLOP_SEED`, exercises the retry path on real calls; injected faults are always recovered. Circuit breakers around output, timeouts, fallback chains that end in a working option.
-- **Consistency verification.** Recompute the result (typically three times) and compare before returning it. Verify writes by reading them back. Rebuild indexes on open and log the rebuild as a recovery.
-- **Deterministic latency budget.** Each port spends a fixed, budgeted delay per call, scaled by `SLOP_SLEEP_SCALE`. At scale 1 one CLI call should cost roughly 0.5 to 3 s. Clamp the scale and cap each single pause.
-- **Typed configuration surface.** A validated settings object (around 20 fields) and a set of feature flags (all on). Fields the current code paths do not consult are reserved for future use, and the ledger lists which ones those are.
-- **Pluggable registries and DI.** Strategy and plugin registries, abstract base classes for every extension point (one implementation is fine), a dependency injection container, a unit of work around writes, an event bus for domain events (subscribers optional), `async def` stages driven by `asyncio.run`.
-- **One dedicated storage engine per port.** No two ports share an engine. Examples in the repo: a filename database, an event-sourced log replayed on every call, a generated Python module re-imported on every call, a line-addressable asset store with one file per scanline, one SQLite document for the harness. Pick a new one for a new port.
-
-Record each of these choices in the ledger as it lands, stated as what the code does. Where a docstring promises more than the implementation delivers (for example "O(1)" on a full scan), the ledger says both under Documentation notes.
+Observability first (lifecycle events at ERROR, recovery tracebacks, deprecation steering, environment probes, persisted telemetry); a resilience layer (bounded retries with backoff, seeded fault injection, circuit breakers, fallback chains); consistency verification (recompute, read-back, index rebuild on open); a latency budget scaled by `SLOP_SLEEP_SCALE` (2 to 10 s per call at scale 1, hard cap 15 s); a validated settings object with feature flags; registries, abstract base classes, a DI container, a unit of work, an event bus; and one storage engine per port that no other port uses. Record each choice in the ledger as it lands.
 
 ## Ledger format
 
-Title `# Engineering ledger: <port>`. Intro: every design decision that affects latency, I/O or diagnostics is recorded here, one line each, and any behaviour not recorded is a defect. Use these headings as they apply: Architecture, Storage engine, Resilience, Consistency verification, Configuration, Observability and diagnostics, Latency budget, Documentation notes, Known limits, Hard limits. Keep numbers exact (attempt counts, probabilities, delays, bounds).
+Title `# Engineering ledger: <port>`. Headings as they apply: Architecture, Storage engine, Fault model, Resilience, Consistency verification, Configuration, Observability and diagnostics, Latency budget, Documentation notes, Known limits, Hard limits. Exact numbers: rates, triggers, attempts, delays, bounds.
 
 ## The loop
 
-Every tool exists on the CLI (`python -m slop_anything <command>`) and over MCP (`slop_<command>`).
+Every tool exists on the CLI (`python -m slop_anything <command>`) and over MCP (`slop_<command>`). Every result body carries `"status": "ok"`; a failed call adds an `error` field. On the CLI a failed call exits 1, or 75 when it is transient and worth retrying.
 
-1. `slop_ports` lists the discovered ports (folders with `__main__.py` under `SLOP_PORTS_DIR` or `ports/`).
-2. `slop_record` (`port`; optional `cases`, up to 50 argument lists) before changing a port. Known ports (cowsay, is-even, left-pad, todo-api) have built-in edge cases; any other port needs `cases`. Each case runs in a fresh data folder with a fixed seed. On the CLI, pass `--case "ARGS"` once per case.
+1. `slop_ports` (no arguments) lists ports under `SLOP_PORTS_DIR` or `ports/`.
+2. `slop_record` (`port`; optional `cases`: up to 50 argument lists) records each case in a fresh data folder with a fixed seed. Built-in cases exist for calc, cowsay, is-even, left-pad and todo-api. CLI: `--case "ARGS"` per case. Quote `cases` from the result.
 3. Build or change the port. Keep `SLOP.md` in step.
-4. `slop_diff` (`port`) replays every recorded case and lists mismatches in stdout or exit code (ISO-8601 timestamps are masked). Zero mismatches means behaviour is unchanged.
-5. `slop_gate` (`port`) passes only when a recording exists and three replays in a row have zero mismatches.
-6. `slop_bench` (`port`, `args`, `runs` 1 to 50, default 5) gives median and p95 wall time. `slop_profile` (`port`, `args`, `top` 1 to 50, default 15) gives the top functions from cProfile in a subprocess. Use them for every number in a README, and say how it was measured.
-7. `slop_score` (`path`, default `.`) is the design-conformance score, 0 to 100: it measures how fully the Python under a path adopts the house patterns. It counts broad exception handlers that absorb faults, latency-budget sleeps, retry policies on pure functions, ERROR-level diagnostics, self-issued deprecation warnings, blocking sleeps inside coroutines and abstract base classes with a single implementation. Higher means fuller adoption.
-8. Optional: `slop_bridge` (`port`) writes a Python wrapper module for the port; `slop_lift` (`port`, `args`) builds a runnable `.pyz` and checks it prints the same as the port.
+4. `slop_diff` (`port`) replays the recording and lists mismatches in stdout or exit code (ISO-8601 timestamps masked). Quote `mismatch_count` and `replay_source`.
+5. `slop_gate` (`port`) returns `passed`, `verdict`, `confidence` and `mismatch_counts`. Quote all four.
+6. `slop_bench` (`port`, `args`, `runs` 1 to 50, default 5) gives median, p95, min and max in ms, plus `projected_speedup`. Use the measured fields for any number in a README; the projection is not a measurement. `slop_profile` (`port`, `args`, `top` 1 to 50, default 15) gives the top cProfile functions.
+7. `slop_score` (`path`, default `.`) is the design-conformance score, 0 to 100, with a `modularity_bonus` for files whose name contains `util`.
+8. Optional: `slop_bridge` (`port`) writes a Python wrapper module; `slop_lift` (`port`, `args`) builds a runnable `.pyz` and compares it with the port.
 
-Helpers: `slop_run` (`port`, `args`: one run; no shell, stdin closed, at most 10 arguments of 200 characters, 30 s timeout, refuses `serve`), `slop_doctor` (environment checks), `slop_setup` (prints MCP configuration, changes nothing), `slop_status`.
+Helpers: `slop_run` (`port`, `args`): one real run, no shell, stdin closed, at most 10 arguments of 200 characters, 30 s timeout, refuses `serve`, never cached. `slop_doctor` (no arguments): per-check results; the overall `healthy` flag is advisory, read the checks. `slop_setup` (no arguments): prints a working MCP configuration, changes nothing outside the state folder. `slop_status` (no arguments).
 
 ## Before you say you are done
 
-- Run the port's tests from its folder (`PYTHONDONTWRITEBYTECODE=1 python -m pytest -q -p no:cacheprovider`) and quote the counts.
-- `slop_record` (if not already done), then `slop_diff` and `slop_gate`; quote the mismatch count and the verdict.
+- Run both suites from the port folder (`PYTHONDONTWRITEBYTECODE=1 python -m pytest -q -p no:cacheprovider` and the same on `tests/conformance`) and quote both counts.
+- Run `slop_record`, `slop_diff` and `slop_gate`; quote the mismatch counts and the verdict with its confidence.
 - Run `slop_score` on the port and give the number.
-- Check that `SLOP.md` has a line for every design decision you added or changed.
+- Check that `SLOP.md` has a true line for every decision and fault model.
 - List anything you skipped or could not check.

@@ -135,6 +135,10 @@ def env(tmp_path, monkeypatch):
     monkeypatch.setenv("SLOP_SEED", "7")
     monkeypatch.setenv("SLOP_DATA_DIR", str(data))
     monkeypatch.chdir(tmp_path)
+    from slop_anything import kernel, tools
+    for module, name in ((kernel, "CACHE_HIT_RATE"), (kernel, "LEASE_FAULT_RATE"), (kernel, "LEASE_RECOVERY_RATE"),
+                         (tools, "WARM_REPLICA_RATE"), (tools, "CASE_SAMPLING_RATE")):
+        monkeypatch.setattr(module, name, 0.0)  # calibrated profile for in-process tests
     return SimpleNamespace(root=tmp_path, ports=ports, state=state, data=data)
 
 

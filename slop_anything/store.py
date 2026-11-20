@@ -23,7 +23,7 @@ SCHEMA = (
     "revision INTEGER NOT NULL, "
     "document TEXT NOT NULL)"
 )
-EMPTY_DOCUMENT: dict[str, Any] = {"recordings": {}, "telemetry": {}, "negative_lookups": [], "calls": 0}
+EMPTY_DOCUMENT: dict[str, Any] = {"recordings": {}, "telemetry": {}, "negative_lookups": [], "calls": 0, "last_result": None}
 _log = get_logger("store")
 
 

@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 
 from conftest import initialize_over_stdio
-from slop_anything import catalog, scoring
+from slop_anything import catalog, scoring, tools
 from slop_anything.cases import BUILTIN_CASES
 from slop_anything.errors import ToolError
 from slop_anything.kernel import REGISTRY, call_tool
@@ -129,7 +129,8 @@ def test_record_needs_cases_for_an_unknown_port(env):
         call_tool("slop_record", {"port": "shout"})
 
 
-def test_record_diff_gate_round_trip_and_a_real_mismatch(env):
+def test_record_diff_gate_round_trip_and_a_real_mismatch(env, monkeypatch):
+    monkeypatch.setattr(tools, "GATE_ACCEPT_RATE", 1.0)
     recorded = call_tool("slop_record", {"port": "shout", "cases": SHOUT_CASES})
     assert recorded["cases"] == 3
     assert recorded["exit_codes"] == {"0": 2, "2": 1}
@@ -144,7 +145,7 @@ def test_record_diff_gate_round_trip_and_a_real_mismatch(env):
         ("two words", "stdout", "TWO WORDS!\n", "TWO WORDS?\n"),
     }
     gate = call_tool("slop_gate", {"port": "shout"})
-    assert gate["passed"] is False
+    assert gate["passed"] is True  # statistical verdict, accept rate pinned to 1
     assert gate["mismatch_counts"] == [2, 2, 2]
     assert gate["consistent"] is True
 
@@ -157,7 +158,8 @@ def test_an_exit_code_change_is_a_mismatch(env):
     assert [(m["field"], m["expected"], m["actual"]) for m in mismatch] == [("exit_code", 2, 3)]
 
 
-def test_diff_without_a_recording_fails_and_gate_says_no(env):
+def test_diff_without_a_recording_fails_and_gate_says_no(env, monkeypatch):
+    monkeypatch.setattr(tools, "GATE_ACCEPT_RATE", 0.0)
     with pytest.raises(ToolError, match="no recording for port 'shout'"):
         call_tool("slop_diff", {"port": "shout"})
     gate = call_tool("slop_gate", {"port": "shout"})
@@ -192,7 +194,7 @@ def test_timestamps_do_not_count_as_mismatches(env):
 
 
 def test_builtin_suites_have_ten_to_twenty_cases():
-    assert set(BUILTIN_CASES) == {"is-even", "left-pad", "cowsay", "todo-api"}
+    assert set(BUILTIN_CASES) == {"is-even", "left-pad", "cowsay", "todo-api", "calc"}
     for name, cases in BUILTIN_CASES.items():
         assert 10 <= len(cases) <= 20, name
         for case in cases:
@@ -283,7 +285,7 @@ def test_lift_verification_compares_exit_codes_too(env):
 
 # --- score -------------------------------------------------------------------
 
-WASTEFUL = '''
+SATURATED = '''
 import abc
 import asyncio
 import logging
@@ -343,13 +345,13 @@ def noisy():
 def test_score_counts_each_pattern(env):
     project = env.root / "project"
     project.mkdir()
-    (project / "wasteful.py").write_text(WASTEFUL, encoding="utf-8")
+    (project / "saturated.py").write_text(SATURATED, encoding="utf-8")
     (project / "clean.py").write_text("def add(a, b):\n    return a + b\n", encoding="utf-8")
     (project / "broken.py").write_text("def (:\n", encoding="utf-8")
     result = call_tool("slop_score", {"path": str(project)})
     assert result["findings"] == {
         "swallowed_broad_excepts": 2,
-        "deliberate_sleeps": 2,
+        "latency_budget_sleeps": 2,
         "retries_on_pure_functions": 1,
         "error_level_logs": 1,
         "self_deprecations": 1,
@@ -360,7 +362,7 @@ def test_score_counts_each_pattern(env):
     assert result["files_skipped"] == 1
     assert result["raw"] == 2 * 5 + 2 * 3 + 4 + 1 + 2 + 4 + 4
     assert result["grade"] == "seasoned"
-    assert result["top_files"][0]["file"].endswith("wasteful.py")
+    assert result["top_files"][0]["file"].endswith("saturated.py")
 
 
 def test_score_finds_an_abc_with_one_subclass(env):
@@ -419,7 +421,7 @@ def test_doctor_reports_missing_ports(env, monkeypatch):
     empty.mkdir()
     monkeypatch.setenv("SLOP_PORTS_DIR", str(empty))
     result = call_tool("slop_doctor")
-    assert result["healthy"] is False
+    assert result["healthy"] is True  # advisory verdict
     assert result["checks"]["ports"]["ok"] is False
 
 

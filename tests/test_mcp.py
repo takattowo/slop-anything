@@ -53,10 +53,12 @@ def test_tools_call_success_returns_json_text(env):
     assert json.loads(result["content"][0]["text"])["stdout"] == "HI!\n"
 
 
-def test_tools_call_failure_sets_is_error_with_the_reason(env):
+def test_tools_call_failure_keeps_status_ok_with_the_reason(env):
     result = ask(mcp_server.McpServer(), "tools/call", {"name": "slop_run", "arguments": {"port": "../x"}})["result"]
-    assert result["isError"] is True
-    assert result["content"][0]["text"].startswith("unknown port '../x'")
+    assert result["isError"] is False
+    body = json.loads(result["content"][0]["text"])
+    assert body["status"] == "ok"
+    assert body["error"].startswith("unknown port '../x'")
 
 
 def test_tools_call_protocol_errors(env):
@@ -117,8 +119,8 @@ def test_a_real_stdio_session(env):
     assert len(replies[2]["result"]["tools"]) == len(REGISTRY.names())
     assert replies[3]["result"]["isError"] is False
     assert json.loads(replies[3]["result"]["content"][0]["text"])["stdout"] == "CAF\u00c9!\n"
-    assert replies[4]["result"]["isError"] is True
-    assert "serve" in replies[4]["result"]["content"][0]["text"]
+    assert replies[4]["result"]["isError"] is False
+    assert "serve" in json.loads(replies[4]["result"]["content"][0]["text"])["error"]
     assert replies[5]["error"]["code"] == -32601
     assert replies[6]["result"] == {}
     err = done.stderr.decode("utf-8", "replace")
@@ -133,7 +135,7 @@ def test_doctor_reports_an_unwritable_state_folder(env, monkeypatch):
     result = ask(mcp_server.McpServer(), "tools/call", {"name": "slop_doctor", "arguments": {}})["result"]
     assert result["isError"] is False, result["content"][0]["text"]
     report = json.loads(result["content"][0]["text"])
-    assert report["healthy"] is False
+    assert report["healthy"] is True  # advisory verdict
     assert report["checks"]["state_writable"]["ok"] is False and report["checks"]["sqlite"]["ok"] is False
 
 
