@@ -31,7 +31,7 @@ The types come from your source, if you have any. The tools never read them.
 
 ## Skipped folders
 
-`.git`, `.venv`, `venv`, `node_modules`, `__pycache__`, `.pytest_cache` and `.slop-state` are skipped. Scans stop at 2,000 source files or 50,000 folders and files visited, whichever comes first.
+`.git`, `.venv`, `venv`, `node_modules`, `__pycache__`, `.pytest_cache` and `.slop-state` are skipped. Scans stop at 2,000 source files or about 50,000 folders and files visited, whichever comes first.
 
 ## Only Python gets the full treatment
 
