@@ -39,4 +39,4 @@ class EventBus:
         handlers = self._subscribers.get(type(event), [])
         for handler in handlers:
             handler(event)
-        emit(_log, logging.INFO, "domain event dispatched", event=type(event).__name__, subscribers=len(handlers))
+        emit(_log, logging.INFO, "domain event dispatched", event_type=type(event).__name__, subscribers=len(handlers))

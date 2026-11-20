@@ -53,6 +53,6 @@ def get_logger(name: str) -> logging.Logger:
     return logging.getLogger(f"{ROOT_LOGGER}.{name}")
 
 
-def emit(logger: logging.Logger, level: int, event: str, **fields: Any) -> None:
-    """Log ``event`` with structured ``fields``."""
-    logger.log(level, event, extra={"fields": fields})
+def emit(logger: logging.Logger, level: int, message: str, /, **fields: Any) -> None:
+    """Log ``message`` with structured ``fields``."""
+    logger.log(level, message, extra={"fields": fields})
