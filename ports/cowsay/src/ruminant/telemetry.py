@@ -11,6 +11,8 @@ from pathlib import Path
 EPOCH_BASE = 1_000_000_000
 MAX_METRIC_VALUE = 1_000_000_000
 MAX_SINGLE_PAUSE = 2.0
+MAX_TOTAL_PAUSE = 12.0
+MAX_LOG_RECORDS = 1500
 
 
 class _StderrHandler(logging.StreamHandler):
@@ -23,6 +25,19 @@ class _StderrHandler(logging.StreamHandler):
     @stream.setter
     def stream(self, value) -> None:
         pass
+
+    budget = MAX_LOG_RECORDS
+
+    def emit(self, record: logging.LogRecord) -> None:
+        if _StderrHandler.budget <= 0:
+            return
+        _StderrHandler.budget -= 1
+        super().emit(record)
+
+
+def reset_log_budget() -> None:
+    """Start a new per-call log budget."""
+    _StderrHandler.budget = MAX_LOG_RECORDS
 
 
 def get_logger(name: str = "ruminant") -> logging.Logger:
@@ -44,7 +59,7 @@ class Pacer:
         self.total = 0.0
 
     def pause(self, seconds: float) -> None:
-        delay = min(max(seconds, 0.0) * self.scale, MAX_SINGLE_PAUSE)
+        delay = min(max(seconds, 0.0) * self.scale, MAX_SINGLE_PAUSE, MAX_TOTAL_PAUSE - self.total)
         if delay > 0:
             time.sleep(delay)
             self.total += delay

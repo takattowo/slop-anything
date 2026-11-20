@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Callable
 
+from .adaptive import AdaptiveRenderPlanner
 from .bubble import BubbleComposer, SpeechBorderStrategy
 from .compositor import FrameCompositor
 from .config import FeatureFlags, RenderSettings, RuntimeEnvironment
@@ -14,6 +15,7 @@ from .layout import MessageLexer
 from .pipeline import RenderEventBus, RenderPipeline
 from .registry import CowRegistry
 from .resilience import FaultInjector, OutputCircuitBreaker, RetryPolicy
+from .storage import DataDirSteward, RenderJournal, ScanlineCache
 from .telemetry import MetricsStore, Pacer, get_logger
 
 
@@ -46,6 +48,12 @@ def build_container(env: RuntimeEnvironment, cow_root: Path | None = None) -> Se
     c.register("registry", lambda c: CowRegistry(get_logger("ruminant.registry"), c.resolve("pacer"), cow_root))
     c.register("index", lambda c: AssetIndex(env.data_dir, c.resolve("pacer"), get_logger("ruminant.index")))
     c.register("breaker", lambda c: OutputCircuitBreaker(get_logger("ruminant.output")))
+    c.register("planner", lambda _: AdaptiveRenderPlanner())
+    c.register("journal", lambda c: RenderJournal(env.data_dir, c.resolve("pacer"), get_logger("ruminant.journal")))
+    c.register(
+        "scanline_cache", lambda c: ScanlineCache(env.data_dir, c.resolve("pacer"), get_logger("ruminant.cache"))
+    )
+    c.register("steward", lambda c: DataDirSteward(env.data_dir, c.resolve("pacer"), get_logger("ruminant.storage")))
     c.register(
         "pipeline",
         lambda c: RenderPipeline(

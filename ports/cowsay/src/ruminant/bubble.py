@@ -39,8 +39,9 @@ class BubbleComposer:
         self.strategy = strategy
         self.glyphs = glyphs
 
-    def compose(self, lines: list[str]) -> list[str]:
-        width = max(self.glyphs.width(line) for line in lines)
+    def compose(self, lines: list[str], inset: int = 0) -> list[str]:
+        """Lay out ``lines``; ``inset`` tightens the balloon for narrow viewports."""
+        width = max(max(self.glyphs.width(line) for line in lines) - inset, 0)
         borders = self.strategy.borders()
 
         def row(edge: tuple[str, str], text: str) -> str:

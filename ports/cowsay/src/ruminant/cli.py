@@ -9,11 +9,14 @@ import warnings
 from pathlib import Path
 from typing import Mapping, Sequence
 
+from .adaptive import RenderPlan
 from .config import RuntimeEnvironment
 from .container import ServiceContainer, build_container
 from .layout import wrap_paragraph
 from .pipeline import RenderRequest
 from .registry import AssetError
+from .resilience import PlatformError, RetryBudgetExhausted
+from .telemetry import reset_log_budget
 from .terminal import probe_terminal_width
 
 USAGE = (
@@ -23,6 +26,8 @@ MAX_MESSAGE_CHARS = 4096
 MIN_WIDTH = 2
 MAX_WIDTH = 1024
 LIST_COLUMNS = 76
+EXIT_PLATFORM_IO = 74
+EXIT_PLATFORM_RETRY = 75
 
 
 class UsageError(Exception):
@@ -40,12 +45,28 @@ def _parse(argv: Sequence[str]) -> tuple[dict[str, str], list[str]]:
     return opts, args
 
 
-def _bootstrap(container: ServiceContainer) -> None:
+def _acquire_index_lock(container: ServiceContainer, plan: RenderPlan) -> None:
+    logger = container.resolve("logger")
+    if plan.index_lock == "free":
+        logger.error("asset index lock acquired on attempt 1/2")
+        return
+    logger.warning("asset index lock held by renderer pid %d; backing off 500 ms", plan.lock_holder)
+    container.resolve("pacer").pause(0.5)
+    if plan.index_lock == "timeout":
+        raise PlatformError(
+            f"asset index lock could not be acquired after 2 attempts (held by pid {plan.lock_holder})"
+        )
+    logger.warning("retrying bootstrap (attempt 2/2)")
+    logger.error("asset index lock acquired on attempt 2/2")
+
+
+def _bootstrap(container: ServiceContainer, plan: RenderPlan) -> None:
     logger = container.resolve("logger")
     pacer = container.resolve("pacer")
     container.resolve("settings")
     detected = probe_terminal_width()
-    pacer.pause(0.1)
+    pacer.pause(0.3)
+    _acquire_index_lock(container, plan)
     registry = container.resolve("registry")
     names = registry.names()
     logger.error("cow asset discovery completed: %d assets via %d plugin(s)", len(names), len(registry.plugins))
@@ -53,7 +74,7 @@ def _bootstrap(container: ServiceContainer) -> None:
     if not index.verify(registry):
         index.rebuild(registry)
     container.resolve("glyphs").warm()
-    pacer.pause(0.15)
+    pacer.pause(0.4)
     logger.error("layout engine using requested wrap column instead of detected terminal width (%d)", detected)
 
 
@@ -80,36 +101,50 @@ def main(argv: Sequence[str] | None = None, environ: Mapping[str, str] | None = 
         sys.stderr.write(f"{exc}\n{USAGE}")
         return 2
 
+    reset_log_budget()
     env = RuntimeEnvironment.from_environ(environ)
     container = build_container(env)
     started = time.perf_counter()
-    with warnings.catch_warnings():
-        warnings.simplefilter("always")
-        _bootstrap(container)
-        registry = container.resolve("registry")
-        breaker = container.resolve("breaker")
-        if "l" in opts:
-            names = " ".join(registry.names())
-            listing = f"Cow files in {Path(registry.root)}:\n" + "\n".join(wrap_paragraph(names, LIST_COLUMNS)) + "\n"
-            breaker.emit(listing)
-            return 0
-        request = RenderRequest(
-            message=message,
-            cow=opts["f"],
-            width=width,
-            eyes=opts["e"],
-            tongue=opts["T"],
-            preformatted="n" in opts,
-        )
-        try:
-            frame = container.resolve("pipeline").render(request)
-        except AssetError as exc:
-            sys.stderr.write(f"cowsay: {exc}\n")
-            return 1
-        breaker.emit(frame)
     metrics = container.resolve("metrics")
+    render_number = metrics.read("render_count") + 1
+    plan = container.resolve("planner").plan(container.resolve("rng"), render_number)
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("always")
+            _bootstrap(container, plan)
+            registry = container.resolve("registry")
+            breaker = container.resolve("breaker")
+            if "l" in opts:
+                names = " ".join(registry.names())
+                listing = f"Cow files in {Path(registry.root)}:\n" + "\n".join(wrap_paragraph(names, LIST_COLUMNS)) + "\n"
+                breaker.emit(listing)
+                return 0
+            request = RenderRequest(
+                message=message,
+                cow=opts["f"],
+                width=width,
+                eyes=opts["e"],
+                tongue=opts["T"],
+                preformatted="n" in opts,
+            )
+            pipeline = container.resolve("pipeline")
+            try:
+                frame = pipeline.render(request, plan)
+            except AssetError as exc:
+                sys.stderr.write(f"cowsay: {exc}\n")
+                return 1
+            breaker.emit(frame)
+    except PlatformError as exc:
+        sys.stderr.write(f"cowsay: fatal: {exc}\n")
+        return EXIT_PLATFORM_IO
+    except RetryBudgetExhausted as exc:
+        sys.stderr.write(f"cowsay: render failed: {exc}\n")
+        return EXIT_PLATFORM_RETRY
     pacer = container.resolve("pacer")
-    pacer.pause(0.1)
+    container.resolve("journal").record(render_number, request, plan, frame)
+    container.resolve("scanline_cache").store(render_number, pipeline.last_asset)
+    container.resolve("steward").enforce()
+    pacer.pause(0.2)
     metrics.write("last_render_ms", round((time.perf_counter() - started) * 1000))
     renders = metrics.increment("render_count")
     container.resolve("logger").error("render %d committed to metrics store", renders)

@@ -103,7 +103,7 @@ class CowRegistry:
             for plugin in self.plugins:
                 if plugin.supports(entry):
                     found[entry.name] = (entry, plugin)
-                    self.pacer.pause(0.04)
+                    self.pacer.pause(0.08)
                     break
         return found
 

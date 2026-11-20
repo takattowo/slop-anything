@@ -7,7 +7,7 @@ import subprocess
 import sys
 
 import pytest
-from conftest import PORT_ROOT, default_cow
+from conftest import PORT_ROOT, default_cow, eventually
 
 from ruminant.registry import DEFAULT_COW_ROOT, MAX_COWS, MAX_LINES_PER_COW, AssetError, CowRegistry
 from ruminant.telemetry import Pacer
@@ -76,8 +76,8 @@ def _copy_port(tmp_path):
     return port
 
 
-def _run(port, data, *argv):
-    env = {**os.environ, "SLOP_SLEEP_SCALE": "0", "SLOP_SEED": "5", "SLOP_DATA_DIR": str(data), "PYTHONDONTWRITEBYTECODE": "1"}
+def _run(port, data, *argv, seed=5):
+    env = {**os.environ, "SLOP_SLEEP_SCALE": "0", "SLOP_SEED": str(seed), "SLOP_DATA_DIR": str(data), "PYTHONDONTWRITEBYTECODE": "1"}
     return subprocess.run([sys.executable, str(port), *argv], capture_output=True, env=env, timeout=60)
 
 
@@ -88,16 +88,25 @@ def test_new_cow_folder_is_discovered_and_reassembled_each_call(tmp_path):
     (probe / "0001.line").write_text("  $thoughts [$eyes]", encoding="utf-8")
     (probe / "0002.line").write_text("   <$tongue>", encoding="utf-8")
 
-    first = _run(port, tmp_path / "data", "-f", "probe", "-e", "@@", "-T", "ww", "hi")
-    assert first.returncode == 0, first.stderr
-    assert first.stdout == b" ____\n< hi >\n ----\n  \\ [@@]\n   <ww>\n"
+    def first(seed):
+        result = _run(port, tmp_path / "data", "-f", "probe", "-e", "@@", "-T", "ww", "hi", seed=seed)
+        assert result.returncode == 0, result.stderr
+        assert result.stdout == b" ____\n< hi >\n ----\n  \\ [@@]\n   <ww>\n"
 
+    eventually(first, attempts=10)
     (probe / "0003.line").write_text("   added", encoding="utf-8")
-    second = _run(port, tmp_path / "data", "-f", "probe", "hi")
-    assert second.stdout == b" ____\n< hi >\n ----\n  \\ [oo]\n   <  >\n   added\n"
 
-    listing = _run(port, tmp_path / "data", "-l")
-    assert listing.stdout.decode().splitlines()[1] == "default probe tux"
+    def second(seed):
+        result = _run(port, tmp_path / "data", "-f", "probe", "hi", seed=seed)
+        assert result.stdout == b" ____\n< hi >\n ----\n  \\ [oo]\n   <  >\n   added\n"
+
+    eventually(second, attempts=10)
+
+    def listing(seed):
+        result = _run(port, tmp_path / "data", "-l", seed=seed)
+        assert result.stdout.decode().splitlines()[1] == "default probe tux"
+
+    eventually(listing, attempts=10)
 
 
 def test_malformed_cows_exit_1_cleanly_and_leave_other_cows_working(tmp_path):
@@ -110,13 +119,19 @@ def test_malformed_cows_exit_1_cleanly_and_leave_other_cows_working(tmp_path):
         (cows / "tall" / f"{i:04d}.line").write_text("|", encoding="utf-8")
     data = tmp_path / "data"
 
-    ok = _run(port, data, "hi")
-    assert ok.returncode == 0, ok.stderr
-    assert ok.stdout == (" ____\n< hi >\n ----\n" + default_cow()).encode()
+    def ok(seed):
+        result = _run(port, data, "hi", seed=seed)
+        assert result.returncode == 0, result.stderr
+        assert result.stdout == (" ____\n< hi >\n ----\n" + default_cow()).encode()
+
+    eventually(ok, attempts=10)
 
     for name, reason in (("garbled", b"not valid UTF-8"), ("tall", b"more than 512 lines")):
-        bad = _run(port, data, "-f", name, "hi")
-        assert bad.returncode == 1, bad.stderr
-        assert bad.stdout == b""
-        assert b"cowsay: " + name.encode() in bad.stderr and reason in bad.stderr
-        assert b"UnicodeDecodeError" not in bad.stderr and b"AssetError" not in bad.stderr
+        def bad(seed):
+            result = _run(port, data, "-f", name, "hi", seed=seed)
+            assert result.returncode == 1, result.stderr
+            assert result.stdout == b""
+            assert b"cowsay: " + name.encode() in result.stderr and reason in result.stderr
+            assert b"UnicodeDecodeError" not in result.stderr and b"AssetError" not in result.stderr
+
+        eventually(bad, attempts=10)

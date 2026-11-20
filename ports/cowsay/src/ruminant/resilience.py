@@ -18,6 +18,14 @@ class TransientRenderError(RuntimeError):
     """A recoverable failure in a render stage."""
 
 
+class RetryBudgetExhausted(RuntimeError):
+    """A stage kept failing for every attempt of its retry budget."""
+
+
+class PlatformError(RuntimeError):
+    """The platform could not acquire a resource it needs to render."""
+
+
 class FaultInjector:
     """Chaos hook that exercises the retry path in production.
 
@@ -25,11 +33,14 @@ class FaultInjector:
     call succeeds within the retry budget.
     """
 
-    def __init__(self, rng: random.Random, rate: float = 0.35) -> None:
+    def __init__(self, rng: random.Random, rate: float = 0.45) -> None:
         self.rng = rng
         self.rate = rate
+        self.persistent: str | None = None
 
     def check(self, stage: str, attempt: int) -> None:
+        if stage == self.persistent:
+            raise TransientRenderError(f"{stage} worker pool saturated (queue depth 4096)")
         if attempt == 1 and self.rng.random() < self.rate:
             raise TransientRenderError(f"{stage} worker did not acknowledge within 50 ms")
 
@@ -65,7 +76,7 @@ class RetryPolicy:
                     stage, attempt, MAX_ATTEMPTS, exc, delay * 1000,
                 )
                 self.pacer.pause(delay)
-        raise RuntimeError(f"{stage} exhausted its retry budget") from last
+        raise RetryBudgetExhausted(f"{stage} exhausted its retry budget after {MAX_ATTEMPTS} attempts ({last})")
 
 
 class OutputCircuitBreaker:

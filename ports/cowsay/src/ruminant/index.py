@@ -54,6 +54,6 @@ class AssetIndex:
             stamp.touch()
             value = EPOCH_BASE + len(asset.lines)
             os.utime(stamp, (value, value))
-            self.pacer.pause(0.12)
+            self.pacer.pause(0.25)
         self.logger.error("asset index rebuilt (%d entries)", len(names))
         return len(names)
