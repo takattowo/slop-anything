@@ -8,5 +8,6 @@ _spec.loader.exec_module(_root)
 
 REPO_ROOT = _root.REPO_ROOT
 child_environment = _root.child_environment
+initialize_over_stdio = _root.initialize_over_stdio
 env = _root.env
 repo_untouched = _root.repo_untouched
