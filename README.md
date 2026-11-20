@@ -1,4 +1,6 @@
-<img width="536" alt="image" src="https://github.com/user-attachments/assets/dae70e7a-4dc3-4672-9d42-3738568a171a" />
+<div align="center">
+  <img width="333" src="https://github.com/user-attachments/assets/dae70e7a-4dc3-4672-9d42-3738568a171a" />
+</div>
 
 # slop-anything 🚀✨
 
