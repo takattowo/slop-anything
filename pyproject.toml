@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "slop-anything"
+version = "0.0.1"
+description = "Rewrite anything. Badly."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = ["openpyxl"]
+
+[project.scripts]
+slop = "slop_anything.cli:main"
+
+[tool.setuptools]
+packages = ["slop_anything"]

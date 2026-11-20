@@ -1,0 +1,6 @@
+openpyxl
+pytest
+# for future features:
+# tensorflow
+# torch
+# transformers
