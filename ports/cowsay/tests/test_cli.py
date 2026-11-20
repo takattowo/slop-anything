@@ -1,0 +1,54 @@
+"""The CLI as a subprocess: exact stdout, noisy stderr, usage errors."""
+
+import os
+import subprocess
+import sys
+
+from conftest import PORT_ROOT, default_cow
+
+
+def run(tmp_path, *argv):
+    env = {
+        **os.environ,
+        "SLOP_SLEEP_SCALE": "0",
+        "SLOP_SEED": "99",
+        "SLOP_DATA_DIR": str(tmp_path / "data"),
+        "PYTHONDONTWRITEBYTECODE": "1",
+    }
+    return subprocess.run(
+        [sys.executable, str(PORT_ROOT), *argv], capture_output=True, env=env, cwd=tmp_path, timeout=60
+    )
+
+
+def test_stdout_is_exact_and_stderr_is_noisy(tmp_path):
+    result = run(tmp_path, "Hello,", "world")
+    assert result.returncode == 0
+    expected = " ______________\n< Hello, world >\n --------------\n" + default_cow()
+    assert result.stdout == expected.encode()
+    err = result.stderr.decode()
+    assert "TerminalCapabilityWarning" in err
+    assert "asset index corruption detected" in err
+    assert "Traceback (most recent call last)" in err
+    assert "KeyError: 'ruminant-mono'" in err
+    assert "recovered: glyph metrics regenerated" in err
+    assert "DeprecationWarning" in err
+    assert "frame consistency verified across 3 independent renders" in err
+    assert err.count(" ERROR ") >= 5
+
+
+def test_no_message_is_usage_error(tmp_path):
+    result = run(tmp_path)
+    assert result.returncode == 2
+    assert result.stdout == b""
+    assert b"Usage: cowsay" in result.stderr
+
+
+def test_writes_only_to_the_data_dir(tmp_path):
+    assert run(tmp_path, "moo").returncode == 0
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["data"]
+
+
+def test_help_goes_to_stdout(tmp_path):
+    result = run(tmp_path, "-h")
+    assert result.returncode == 0
+    assert result.stdout.startswith(b"Usage: cowsay")
