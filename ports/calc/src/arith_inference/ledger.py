@@ -19,7 +19,7 @@ _log = get_logger("ledger")
 
 FIELDS = ("seq", "ts", "expression", "result", "backend", "confidence", "plan")
 MAX_ROW_CHARS = 64 * 1024
-MAX_SCAN_BYTES = 8 * 1024 * 1024
+MAX_SCAN_BYTES = 2 * 1024 * 1024
 MAX_MALFORMED_REPORTS = 20
 _FORMULA = "=+-@"
 
@@ -87,6 +87,12 @@ def parse_rows(text: str) -> Iterator[list[str]]:
         yield row
 
 
+def _refuse_links(path: Path) -> None:
+    """Refuse to write through a symbolic or hard link, so writes stay inside the data dir."""
+    if path.is_symlink() or (path.exists() and path.stat().st_nlink > 1):
+        raise PermissionError(f"{path.name} is a link; refusing to write through it")
+
+
 class ComputationLedger:
     """Append-only CSV ledger, bounded by compaction."""
 
@@ -94,6 +100,7 @@ class ComputationLedger:
         self.path = path
         self.max_rows = max_rows
         self.compact_to = compact_to
+        self.malformed = 0
 
     def scan(self) -> list[dict[str, str]]:
         """Read and validate every row."""
@@ -103,6 +110,7 @@ class ComputationLedger:
                 fh.seek(max(0, size - MAX_SCAN_BYTES))
                 raw = fh.read()
         except FileNotFoundError:
+            self.malformed = 0
             return []
         rows: list[dict[str, str]] = []
         malformed = 0
@@ -117,9 +125,11 @@ class ComputationLedger:
             rows.append(dict(zip(FIELDS, (unescape_field(f) for f in fields))))
         if malformed > MAX_MALFORMED_REPORTS:
             _log.error("%d further malformed ledger rows skipped", malformed - MAX_MALFORMED_REPORTS)
+        self.malformed = malformed
         return rows
 
     def append(self, record: dict[str, str]) -> None:
+        _refuse_links(self.path)
         new = not self.path.exists() or self.path.stat().st_size == 0
         with self.path.open("a", encoding="utf-8", newline="") as fh:
             if new:
@@ -131,10 +141,11 @@ class ComputationLedger:
             oversized = self.path.stat().st_size > MAX_SCAN_BYTES
         except FileNotFoundError:
             oversized = False
-        if len(rows) <= self.max_rows and not oversized:
+        if len(rows) <= self.max_rows and not oversized and not self.malformed:
             return False
-        keep = rows[-self.compact_to :]
+        keep = rows[-self.compact_to :] if len(rows) > self.max_rows or oversized else rows
         tmp = self.path.with_name(self.path.name + ".tmp")
+        _refuse_links(tmp)
         with tmp.open("w", encoding="utf-8", newline="") as fh:
             fh.write(encode_row(FIELDS))
             for row in keep:
@@ -147,6 +158,7 @@ class ComputationLedger:
 def write_telemetry(path: Path, values: dict[str, object]) -> None:
     """Rewrite the telemetry snapshot (header plus one row)."""
     tmp = path.with_name(path.name + ".tmp")
+    _refuse_links(tmp)
     with tmp.open("w", encoding="utf-8", newline="") as fh:
         fh.write(encode_row(list(values)))
         fh.write(encode_row([str(v) for v in values.values()]))

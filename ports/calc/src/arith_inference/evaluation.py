@@ -16,6 +16,7 @@ from .settings import MAX_BITS, MAX_DIGITS, MAX_EXPONENT
 
 Value = Union[Fraction, float]
 NON_COMMUTATIVE = frozenset({"-", "/", "//", "%", "**"})
+_LIMIT = 10**MAX_DIGITS
 
 
 def check(value: Value) -> Value:
@@ -23,7 +24,7 @@ def check(value: Value) -> Value:
     if isinstance(value, float):
         if not math.isfinite(value):
             raise ResultTooLarge("result is outside the supported range")
-    elif value.numerator.bit_length() > MAX_BITS or value.denominator.bit_length() > MAX_BITS:
+    elif abs(value.numerator) >= _LIMIT or value.denominator >= _LIMIT:
         raise ResultTooLarge(f"result would have more than {MAX_DIGITS:,} digits")
     return value
 
@@ -82,9 +83,9 @@ def evaluate(node: tuple) -> Value:
     """Evaluate a plan tree exactly."""
     kind = node[0]
     if kind == "num":
-        return node[1]
+        return check(node[1])
     if kind == "neg":
         return check(-evaluate(node[1]))
     if kind == "pos":
-        return evaluate(node[1])
+        return check(evaluate(node[1]))
     return apply(node[1], evaluate(node[2]), evaluate(node[3]))

@@ -5,6 +5,7 @@ import random
 import re
 import subprocess
 import sys
+import threading
 import time
 from decimal import Decimal
 from pathlib import Path
@@ -12,9 +13,10 @@ from pathlib import Path
 import pytest
 
 from conftest import PORT_DIR
-from arith_inference.errors import CalcError
-from arith_inference.ledger import FIELDS, encode_row
+from arith_inference.errors import CalcError, InvalidExpression
+from arith_inference.ledger import FIELDS, MAX_SCAN_BYTES, encode_row, parse_rows
 from arith_inference.service import ArithmeticInferenceService
+from arith_inference.settings import FaultModel
 
 REPO = PORT_DIR.parents[1]
 RESULT = re.compile(r"-?\d+(\.\d+)?(e[+-]\d+)?")
@@ -72,6 +74,14 @@ def dir_usage(root: Path) -> tuple[int, int]:
     return sum(p.stat().st_size for p in files), len(files)
 
 
+def digits(text: str) -> int:
+    return sum(ch.isdigit() for ch in text.split("e")[0])
+
+
+def ledger_row(seq: int, expression: str, result: str) -> str:
+    return encode_row([str(seq), "0", expression, result, "exact-ast", "1.0000", "ast"])
+
+
 def test_writes_only_inside_the_data_dir(tmp_path):
     work, data, sibling = tmp_path / "work", tmp_path / "data", tmp_path / "sibling"
     work.mkdir()
@@ -110,8 +120,18 @@ def test_never_reads_stdin(tmp_path, mode):
     )
     if mode == "closed":
         proc.stdin.close()
+    streams: dict[str, str] = {}
+    readers = [
+        threading.Thread(target=lambda name=name, fh=fh: streams.__setitem__(name, fh.read()), daemon=True)
+        for name, fh in (("out", proc.stdout), ("err", proc.stderr))
+    ]
+    for reader in readers:
+        reader.start()
     try:
-        out, _ = proc.communicate(timeout=60) if mode == "closed" else (proc.stdout.read(), proc.wait(timeout=60))
+        proc.wait(timeout=60)  # an open stdin pipe stays open: a read would block here and time out
+        for reader in readers:
+            reader.join(timeout=10)
+        out = streams.get("out", "")
     finally:
         if proc.poll() is None:
             proc.kill()
@@ -131,6 +151,19 @@ def test_each_call_finishes_under_the_time_cap(tmp_path):
         elapsed = time.perf_counter() - started
         assert 2.0 <= elapsed < 15.0, elapsed
         assert len(result.stderr.splitlines()) <= 2_000
+
+
+def test_worst_case_request_stays_under_the_time_cap(tmp_path, monkeypatch):
+    # Every backend attempt fails, the ledger write conflicts, and the ledger is 8 MiB of rows to parse.
+    monkeypatch.setenv("SLOP_SLEEP_SCALE", "1")
+    data = tmp_path / "data"
+    data.mkdir()
+    line = "garbage line without enough fields\n"
+    (data / "ledger.csv").write_text(line * (8 * 1024 * 1024 // len(line)), encoding="utf-8")
+    faults = FaultModel(backend_fault_rate=1.0, ledger_conflict_rate=1.0, consensus_timeout_rate=0.0)
+    started = time.perf_counter()
+    ArithmeticInferenceService(data_dir=data, faults=faults, rng=random.Random(0)).compute("(1+2)*3")
+    assert time.perf_counter() - started < 15.0
 
 
 def test_calls_are_fast_at_scale_zero(tmp_path):
@@ -168,7 +201,109 @@ def test_oversized_ledger_is_compacted(tmp_path):
         ArithmeticInferenceService(data_dir=data, rng=random.Random(3)).compute("1+1")
     except CalcError:
         pass
-    assert (data / "ledger.csv").stat().st_size < 8 * 1024 * 1024
+    assert (data / "ledger.csv").stat().st_size < MAX_SCAN_BYTES
+
+
+def test_malformed_rows_are_compacted_away(tmp_path):
+    data = tmp_path / "data"
+    data.mkdir()
+    with (data / "ledger.csv").open("w", encoding="utf-8", newline="") as fh:
+        fh.write(encode_row(FIELDS))
+        fh.write("garbage line without enough fields\n" * 1_000)
+        fh.write(ledger_row(1, "1+1", "2"))
+    try:
+        ArithmeticInferenceService(data_dir=data, rng=random.Random(3)).compute("2+3")
+    except CalcError:
+        pass
+    rows = list(parse_rows((data / "ledger.csv").read_text(encoding="utf-8")))
+    assert all(len(r) == len(FIELDS) for r in rows)
+    assert ["1", "0", "1+1", "2", "exact-ast", "1.0000", "ast"] in rows
+
+
+def test_only_its_own_files_are_rewritten(tmp_path):
+    data, sibling = tmp_path / "data", tmp_path / "data-old"
+    data.mkdir()
+    sibling.mkdir()
+    decoys = [data / n for n in ("ledger.csv.bak", "ledger.csv.tmp2", "ledger.tmp", "telemetry.csv.old", "notes.tmp", "Ledger.csv~")]
+    decoys += [sibling / n for n in ("ledger.csv", "ledger.csv.tmp", "telemetry.csv")]
+    for path in decoys:
+        path.write_text("keep", encoding="utf-8")
+        os.utime(path, (1_000_000_000, 1_000_000_000))
+    with (data / "ledger.csv").open("w", encoding="utf-8", newline="") as fh:
+        fh.write(encode_row(FIELDS))
+        for i in range(2_100):
+            fh.write(ledger_row(i + 1, f"{i}+1", str(i + 1)))
+    before = {p: (p.read_text(encoding="utf-8"), p.stat().st_mtime_ns) for p in decoys}
+    for i in range(5):
+        try:
+            ArithmeticInferenceService(data_dir=data, rng=random.Random(i)).compute(f"{i}+{i}")
+        except CalcError:
+            pass
+    assert {p: (p.read_text(encoding="utf-8"), p.stat().st_mtime_ns) for p in decoys} == before
+
+
+@pytest.mark.parametrize("name", ["ledger.csv", "ledger.csv.tmp", "telemetry.csv.tmp"])
+def test_does_not_write_through_links(tmp_path, name):
+    data = tmp_path / "data"
+    data.mkdir()
+    outside = tmp_path / "outside.txt"
+    outside.write_text("unchanged", encoding="utf-8")
+    try:
+        (data / name).symlink_to(outside)
+    except (OSError, NotImplementedError):
+        pytest.skip("symbolic links are not available to this user")
+    if name != "ledger.csv":
+        with (data / "ledger.csv").open("w", encoding="utf-8", newline="") as fh:
+            fh.write(encode_row(FIELDS))
+            for i in range(2_100):  # forces a compaction, which writes ledger.csv.tmp
+                fh.write(ledger_row(i + 1, f"{i}+1", str(i + 1)))
+    try:
+        ArithmeticInferenceService(data_dir=data, rng=random.Random(1)).compute("1+2")
+    except (CalcError, OSError):
+        pass
+    assert outside.read_text(encoding="utf-8") == "unchanged"
+
+
+def test_storage_errors_exit_1_with_a_message(tmp_path):
+    blocker = tmp_path / "blocker"
+    blocker.write_text("", encoding="utf-8")
+    result = run("1+1", cwd=tmp_path, env={"SLOP_SEED": "1", "SLOP_DATA_DIR": str(blocker / "data")})
+    assert result.returncode == 1
+    assert result.stdout == ""
+    assert result.stderr.splitlines()[-1].startswith("calc: error:"), result.stderr[-500:]
+
+
+def test_warm_cache_serves_only_numeric_rows(tmp_path):
+    data = tmp_path / "data"
+    data.mkdir()
+    planted = ["line1\nline2", "hello", "1" * 300, "=1+1", "1,2"]
+    with (data / "ledger.csv").open("w", encoding="utf-8", newline="") as fh:
+        fh.write(encode_row(FIELDS))
+        for i, text in enumerate(planted):
+            fh.write(ledger_row(i + 1, f"{i}*1", text))
+    faults = FaultModel(cache_recovery_rate=1.0, consensus_timeout_rate=0.0)
+    text = ArithmeticInferenceService(data_dir=data, faults=faults, rng=random.Random(2)).compute("1+1").text
+    assert text not in planted
+    assert RESULT.fullmatch(text)
+
+
+@pytest.mark.parametrize(
+    "expr",
+    [
+        "(5**1000)**14/(2**1000)**10",
+        "(10**1000)**9*(10**1000-1)+(10**1000)**9-1",
+        "(10**1000)**9*(10**1000-1)+(10**1000)**9-1" + "+0" * 60,
+    ],
+)
+def test_printed_results_stay_within_10000_digits(tmp_path, expr):
+    for seed in range(8):
+        try:
+            text = ArithmeticInferenceService(data_dir=tmp_path / "data", rng=random.Random(seed)).compute(expr).text
+        except InvalidExpression:
+            continue
+        except CalcError:
+            continue
+        assert digits(text) <= 10_000, (seed, digits(text))
 
 
 @pytest.mark.parametrize("seed", ["11", "12", "13"])
@@ -189,8 +324,10 @@ def test_happy_path_mostly_works_and_the_fault_model_is_live(tmp_path):
         except CalcError:
             failed += 1
             continue
-        if RESULT.fullmatch(out):
-            formatted += 1
+        if not RESULT.fullmatch(out):
+            wrong += 1
+            continue
+        formatted += 1
         if Decimal(out) != Decimal(expected):
             wrong += 1
     assert formatted / total >= 0.75
@@ -214,7 +351,11 @@ def test_happy_path_mostly_works_and_the_fault_model_is_live(tmp_path):
         "2**1001",
         "2**-1001",
         "(10**1000)**11",
+        "(10**1000)**10",
         "1e99999",
+        "9" * 989 + "e10000",
+        "+" + "9" * 989 + "e10000",
+        "+(" + "9" * 989 + "e10000)",
         "1/0",
         "5%0",
         "5//0",

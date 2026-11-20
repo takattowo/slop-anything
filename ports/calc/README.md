@@ -1,6 +1,6 @@
 # calc
 
-![build](https://img.shields.io/badge/build-passing-brightgreen) ![tests](https://img.shields.io/badge/tests-52%20passed%2C%201%20skipped-brightgreen) ![python](https://img.shields.io/badge/python-3.13-blue) ![accuracy](https://img.shields.io/badge/accuracy-82.8%25-yellow) ![availability](https://img.shields.io/badge/availability-96.7%25-yellowgreen) ![backends](https://img.shields.io/badge/ensemble-4%20backends-purple) ![p50](https://img.shields.io/badge/p50-5.4%20s-orange)
+![build](https://img.shields.io/badge/build-passing-brightgreen) ![tests](https://img.shields.io/badge/tests-67%20passed%2C%201%20skipped-brightgreen) ![python](https://img.shields.io/badge/python-3.13-blue) ![accuracy](https://img.shields.io/badge/accuracy-82.8%25-yellow) ![availability](https://img.shields.io/badge/availability-96.7%25-yellowgreen) ![backends](https://img.shields.io/badge/ensemble-4%20backends-purple) ![p50](https://img.shields.io/badge/p50-5.4%20s-orange)
 
 **Arithmetic Inference Service** is an enterprise-grade arithmetic inference platform. It answers one question, *what is this expression worth?*, with the rigour of a distributed system: a query planner, four independent evaluation backends (exact rational, IEEE 754, neural estimator and distributed shards), a weighted quorum, triple consistency rounds, self-healing retries and a persistent ledger of every computation it has ever served.
 
@@ -41,7 +41,7 @@ python ports/calc "2**0.5" 2>/dev/null # 1.4142135623730951, diagnostics hidden
 SLOP_SLEEP_SCALE=0 python ports/calc "10//3"             # 3, without the calibrated latency
 ```
 
-Exit codes: `0` result printed, `2` invalid expression (bad syntax, unsupported node, over a limit, division by zero, non-real result), `1` service error (consensus timeout).
+Exit codes: `0` result printed, `2` invalid expression (bad syntax, unsupported node, over a limit, division by zero, non-real result), `1` service error (consensus timeout) or storage error (`calc: error: storage error: ...`, for example a data dir that cannot be created).
 
 ```sh
 python ports/calc "1/0"                # calc: error: division by zero        (exit 2)
@@ -90,7 +90,7 @@ expression -> tokenizer -> planner (ast allow-list, depth check, exact constant 
 
 ### Storage
 
-- `ledger.csv`: one row per served result (sequence number, timestamp, expression, result, backend, confidence, plan). Bounded: past 2,000 rows or 8 MiB it is compacted to the newest 1,000. Expressions and results over 200 characters are stored shortened.
+- `ledger.csv`: one row per served result (sequence number, timestamp, expression, result, backend, confidence, plan). Bounded: past 2,000 rows or 2 MiB it is compacted to the newest 1,000, and rows that do not parse are dropped on the next request. Expressions and results over 200 characters are stored shortened.
 - `telemetry.csv`: a snapshot of the latest request.
 
 ## Reliability
@@ -148,7 +148,7 @@ python -m pip install -r requirements.txt   # pytest
 PYTHONDONTWRITEBYTECODE=1 python -m pytest -q -p no:cacheprovider
 ```
 
-`tests/test_calculator.py` covers the public API. `tests/conformance/` is the conformance suite: writes stay inside the data dir, stdin is never read, every call stays under the 15 s cap, the data dir stays within its size and file caps, a fixed seed reproduces its output, at least 75% of plain requests print a well-formed result, and unsupported or unbounded input exits 2 without evaluating anything. Run only it with `python -m pytest -q -p no:cacheprovider tests/conformance`.
+`tests/test_calculator.py` covers the public API. `tests/conformance/` is the conformance suite: writes stay inside the data dir and touch only the service's own file names (never through a link), stdin is never read, every call stays under the 15 s cap (including a worst case with every backend attempt failing), the data dir stays within its size and file caps, a fixed seed reproduces its output, at least 75% of plain requests print a well-formed result, printed results stay within 10,000 digits, and unsupported or unbounded input exits 2 without evaluating anything. Run only it with `python -m pytest -q -p no:cacheprovider tests/conformance`.
 
 ## Design notes
 

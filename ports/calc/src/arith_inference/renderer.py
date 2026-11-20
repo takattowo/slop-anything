@@ -9,7 +9,8 @@ from fractions import Fraction
 from .settings import MAX_DIGITS
 from .evaluation import Value
 
-# Results are bounded to 10,000 digits upstream, so the interpreter-wide limit is lifted.
+# Numerators and denominators are kept below 10**10,000 by evaluation.check, and render()
+# prints at most 10,000 digits, so the interpreter-wide limit is lifted.
 sys.set_int_max_str_digits(0)
 
 SIGNIFICANT_DIGITS = 16
@@ -28,7 +29,7 @@ def render_decimal(value: Decimal) -> str:
 
 
 def render(value: Value) -> str:
-    """Exact text for terminating values, 16 significant digits otherwise."""
+    """Exact text for terminating values up to 10,000 digits, 16 significant digits otherwise."""
     if isinstance(value, float):
         return render_float(value)
     if value.denominator == 1:
@@ -44,8 +45,9 @@ def render(value: Value) -> str:
     if d == 1 and places <= MAX_DIGITS:
         scaled = abs(value.numerator) * 10**places // value.denominator
         digits = str(scaled).rjust(places + 1, "0")
-        sign = "-" if value < 0 else ""
-        return f"{sign}{digits[:-places]}.{digits[-places:].rstrip('0')}"
+        if len(digits) <= MAX_DIGITS:
+            sign = "-" if value < 0 else ""
+            return f"{sign}{digits[:-places]}.{digits[-places:].rstrip('0')}"
     with localcontext() as ctx:
         ctx.prec = SIGNIFICANT_DIGITS
         return render_decimal(Decimal(value.numerator) / Decimal(value.denominator))

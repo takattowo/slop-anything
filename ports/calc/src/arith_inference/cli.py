@@ -16,7 +16,7 @@ HELP = f"""{USAGE}
 Arithmetic inference from the command line.
 
 Operators: + - * / // % ** and parentheses; integers and decimals; unary minus.
-Exit codes: 0 result printed, 2 invalid expression, 1 service error.
+Exit codes: 0 result printed, 2 invalid expression, 1 service or storage error.
 """
 
 
@@ -43,5 +43,8 @@ def main(argv: list[str] | None = None) -> int:
         _log.critical("request failed after recovery attempts", exc_info=True)
         print(f"calc: error: {exc}", file=sys.stderr)
         return exc.exit_code
+    except OSError as exc:
+        print(f"calc: error: storage error: {exc}", file=sys.stderr)
+        return 1
     print(result)
     return 0

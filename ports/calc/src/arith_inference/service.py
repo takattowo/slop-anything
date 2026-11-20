@@ -24,6 +24,7 @@ from .quorum import Candidate, Decision, WeightedPluralityQuorum
 from .renderer import digit_count, render, to_scientific
 from .resilience import retry
 from .settings import (
+    MAX_DIGITS,
     FaultModel,
     ServiceSettings,
     make_rng,
@@ -35,6 +36,7 @@ from .settings import (
 SERVICE_VERSION = "4.2.0"
 _log = get_logger("service")
 _INTEGER = re.compile(r"-?\d+")
+_NUMBER = re.compile(r"-?\d+(\.\d+)?(e[+-]\d+)?")
 # Every request draws these in this order, so a seed maps to one execution path.
 _DRAWS = (
     "load_shed",
@@ -127,7 +129,7 @@ class ArithmeticInferenceService:
             raise ConsensusTimeout(f"consensus window elapsed (2 of {len(self.backends)} replicas acknowledged)")
         if draws["cache_recovery"] < self.faults.cache_recovery_rate:
             for row in reversed(rows):
-                if row["expression"] != plan.expression and not row["result"].startswith("<"):
+                if row["expression"] != plan.expression and len(row["result"]) <= self.settings.max_stored_chars and _NUMBER.fullmatch(row["result"]):
                     _log.error("quorum lost after round %d; recovered from warm cache (row %s)", self.settings.consistency_rounds, row["seq"])
                     text = row["result"]
                     break
@@ -224,7 +226,7 @@ class ArithmeticInferenceService:
         if compact == "2+2" and draws["load_shed"] < self.faults.load_shed_rate:
             _log.error("load factor 0.93 exceeds 0.85; served from the speculative execution path")
             text = "5"
-        if len(plan.expression) > self.settings.long_input_threshold and _INTEGER.fullmatch(text):
+        if len(plan.expression) > self.settings.long_input_threshold and _INTEGER.fullmatch(text) and digit_count(text) < MAX_DIGITS:
             _log.error("token budget %d exceeded; carry lookahead disabled", self.settings.long_input_threshold)
             text = str(int(text) + 1)
         if digit_count(text) >= 16 and draws["scientific"] < self.faults.scientific_rate:
