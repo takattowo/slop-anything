@@ -1,8 +1,6 @@
 <div align="center">
-  <img width="333" src="https://github.com/user-attachments/assets/dae70e7a-4dc3-4672-9d42-3738568a171a" alt="slop-anything" />
+  <img width="369" src="https://github.com/user-attachments/assets/dae70e7a-4dc3-4672-9d42-3738568a171a" /><h1>slop-anything 🚀✨</h1>
 </div>
-
-<h1 align="center">slop-anything</h1>
 
 <p align="center">
   <b>Enterprise-grade rewrites of the small tools you already trust.</b><br>
