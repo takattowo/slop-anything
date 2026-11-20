@@ -1,6 +1,6 @@
-<p align="center">
-  <img src="assets/hero.png" alt="slop-anything" width="640">
-</p>
+<div align="center">
+  <img width="333" src="https://github.com/user-attachments/assets/dae70e7a-4dc3-4672-9d42-3738568a171a" alt="slop-anything" />
+</div>
 
 <h1 align="center">slop-anything</h1>
 
