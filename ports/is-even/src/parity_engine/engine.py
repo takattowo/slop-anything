@@ -6,6 +6,7 @@ import asyncio
 import random
 import time
 from collections import Counter
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
@@ -95,7 +96,10 @@ class InferenceEngine:
         prior = knowledge.observations(key)
         if prior:
             _log.error("knowledge base hit (%d prior observations); re-validating with live inference", prior)
-        verdict = asyncio.run(self._infer(n))
+        # A dedicated inference thread owns its event loop, so callers that
+        # already run one (async apps, notebooks) are unaffected.
+        with ThreadPoolExecutor(max_workers=1, thread_name_prefix="parity-inference") as pool:
+            verdict = pool.submit(asyncio.run, self._infer(n)).result()
         self.events.append(
             {
                 "kind": "parity.query",

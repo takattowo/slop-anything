@@ -26,7 +26,7 @@ One line per deliberate slop. Anything not listed here is a real bug.
 - The degraded-mode "reference model" is `n % 2 == 0`, the same as the modulo backend.
 
 ## Fake async
-- `_infer` and `_infer_round` are `async def` that block in `time.sleep`; `asyncio.run` builds a new event loop on every request.
+- `_infer` and `_infer_round` are `async def` that block in `time.sleep`; every request starts a new single-use worker thread just so `asyncio.run` can build a new event loop on it.
 
 ## Consistency theatre
 - The whole ensemble runs 3 times per request and the rounds are compared.

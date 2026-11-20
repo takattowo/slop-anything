@@ -1,9 +1,13 @@
+import asyncio
 import json
+import os
+from pathlib import Path
 
 import pytest
 
-from parity_engine import EngineSettings, InferenceEngine, is_even
+from parity_engine import EngineSettings, InferenceEngine, event_log, is_even, metrics
 from parity_engine.backends import ParityBackend, default_backends
+from parity_engine.event_log import EventLog
 from parity_engine.normalize import digest
 
 
@@ -47,8 +51,32 @@ def test_log_is_replayed_before_answering(data_dir):
     assert read_events_tail_seq(data_dir) == 8  # next after the highest seq read back
 
 
+CORRUPT_LINES = {
+    "huge-number": b'{"seq": ' + b"9" * 5000 + b"}",
+    "non-utf8": b'{"seq": 1, "note": "\xff\xfe"}\xff',
+    "deep-nesting": b"[" * 5000 + b"]" * 5000,
+    "nested-value": b'{"seq": 1, "payload": ' + b"[" * 2900 + b"]" * 2900 + b"}",
+    "oversized": b'{"seq": 2, "pad": "' + b"x" * 200_000 + b'"}',
+}
+
+
+@pytest.mark.parametrize("bad", CORRUPT_LINES.values(), ids=CORRUPT_LINES.keys())
+def test_corrupt_log_lines_are_skipped(bad, data_dir, capsys):
+    data_dir.mkdir()
+    good = json.dumps({"seq": 4, "digest": digest(42), "parity": "even"}).encode()
+    (data_dir / "events.jsonl").write_bytes(bad + b"\n" + good + b"\n")
+
+    prediction = InferenceEngine().predict(42)
+
+    assert prediction.answer is True
+    assert prediction.replayed_events == 1
+    assert prediction.prior_observations == 1
+    assert read_events_tail_seq(data_dir) == 5
+    assert "skipping" in capsys.readouterr().err
+
+
 def read_events_tail_seq(data_dir):
-    last = (data_dir / "events.jsonl").read_text(encoding="utf-8").splitlines()[-1]
+    last = (data_dir / "events.jsonl").read_bytes().splitlines()[-1]
     return json.loads(last)["seq"]
 
 
@@ -66,6 +94,58 @@ def test_log_is_bounded_by_compaction(data_dir):
 def test_default_bound_is_documented_value():
     settings = EngineSettings()
     assert (settings.max_events, settings.compact_to) == (1000, 500)
+
+
+def filled_log(path, count=3):
+    log = EventLog(path, max_events=2, compact_to=1)
+    for i in range(count):
+        log.append({"n": i})
+    return log
+
+
+def test_compaction_defers_when_another_process_appends(tmp_path):
+    path = tmp_path / "events.jsonl"
+    log = filled_log(path)
+    replay = log.replay
+
+    def replay_then_foreign_append():
+        events = replay()
+        with path.open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps({"seq": 99}) + "\n")
+        return events
+
+    log.replay = replay_then_foreign_append
+    assert log.compact_if_needed() is False
+    assert [e["seq"] for e in read_events(tmp_path)] == [1, 2, 3, 99]
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["events.jsonl"]
+
+
+def locked_replace(monkeypatch, module):
+    targets = []
+
+    def replace(src, dst):
+        targets.append(Path(src).name)
+        raise PermissionError(13, "The process cannot access the file because it is being used by another process")
+
+    monkeypatch.setattr(module.os, "replace", replace)
+    return targets
+
+
+def test_compaction_tolerates_a_locked_log(tmp_path, monkeypatch):
+    path = tmp_path / "events.jsonl"
+    log = filled_log(path)
+    targets = locked_replace(monkeypatch, event_log)
+    assert log.compact_if_needed() is False
+    assert targets == [f"events.jsonl.{os.getpid()}.tmp"]
+    assert len(read_events(tmp_path)) == 3
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["events.jsonl"]
+
+
+def test_locked_metrics_file_does_not_fail_the_request(data_dir, monkeypatch):
+    targets = locked_replace(monkeypatch, metrics)
+    assert is_even(4) is True
+    assert targets == [f"METRICS.md.{os.getpid()}.tmp"]
+    assert sorted(p.name for p in data_dir.iterdir()) == ["events.jsonl"]
 
 
 def test_metrics_table_is_rewritten_every_call(data_dir):
@@ -147,7 +227,15 @@ def test_same_seed_same_fault_pattern():
     a, b = InferenceEngine(), InferenceEngine()
     a.predict(9)
     b.predict(9)
+    assert a.stats["retries"] > 0
     assert a.stats == b.stats
+
+
+def test_is_even_works_inside_a_running_event_loop():
+    async def caller():
+        return is_even(42), is_even(7)
+
+    assert asyncio.run(caller()) == (True, False)
 
 
 @pytest.mark.parametrize("field, value", [("fault_rate", 1.5), ("consistency_rounds", 2), ("compact_to", 1000)])

@@ -1,6 +1,6 @@
 # is-even
 
-![build](https://img.shields.io/badge/build-passing-brightgreen) ![tests](https://img.shields.io/badge/tests-82%20passed-brightgreen) ![python](https://img.shields.io/badge/python-3.13-blue) ![accuracy](https://img.shields.io/badge/accuracy-100%25-brightgreen) ![backends](https://img.shields.io/badge/ensemble-4%20models-purple)
+![build](https://img.shields.io/badge/build-passing-brightgreen) ![tests](https://img.shields.io/badge/tests-92%20passed-brightgreen) ![python](https://img.shields.io/badge/python-3.13-blue) ![accuracy](https://img.shields.io/badge/accuracy-100%25-brightgreen) ![backends](https://img.shields.io/badge/ensemble-4%20models-purple)
 
 **Parity Engine** is a production-grade parity inference engine. It answers one question, *is this integer even?*, with the rigour of an ensemble ML system: four independent models, weighted majority voting, triple consistency checks, self-healing retries and a persistent knowledge base of every question it has ever been asked.
 
@@ -89,7 +89,7 @@ input -> canonicalize -> warm-up -> knowledge base rebuild (event log replay)
 
 ### Storage
 
-- `events.jsonl`: one JSON event per question (sequence number, timestamp, a short preview of the input, a content hash, the answer and its confidence). Events stay small: huge inputs are stored as a preview of the form `<N-bit integer>`. The log is bounded: once it holds more than 1,000 events it is compacted to the newest 500.
+- `events.jsonl`: one JSON event per question (sequence number, timestamp, a short preview of the input, a content hash, the answer and its confidence). Events stay small: huge inputs are stored as a preview of the form `<N-bit integer>`. The log is bounded: once it holds more than 1,000 events it is compacted to the newest 500. Malformed lines and lines over 64 KiB are skipped on replay.
 - `METRICS.md`: a Markdown telemetry table for the latest request.
 
 ## Performance
@@ -105,10 +105,20 @@ That is a deterministic-feeling **1.4 s p50** per answer, about 1.1 s of it cali
 
 ## Testing
 
+PowerShell:
+
+```powershell
+cd ports/is-even
+python -m pip install -r requirements.txt   # pytest
+$env:PYTHONDONTWRITEBYTECODE = "1"; python -m pytest -q -p no:cacheprovider
+```
+
+POSIX shell:
+
 ```sh
 cd ports/is-even
 python -m pip install -r requirements.txt   # pytest
-python -m pytest -q -p no:cacheprovider
+PYTHONDONTWRITEBYTECODE=1 python -m pytest -q -p no:cacheprovider
 ```
 
 The suite runs with `SLOP_SLEEP_SCALE=0`, a fixed `SLOP_SEED` and a temporary `SLOP_DATA_DIR`, and covers correctness from small negatives to 10,000-digit integers, the input contract, the event log and its bound, ensemble fault tolerance, and the CLI as a subprocess.

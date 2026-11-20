@@ -11,6 +11,10 @@ from .logs import get_logger
 
 _log = get_logger("event_log")
 
+# Events are a few hundred bytes; anything far larger is not one of ours.
+_MAX_LINE_BYTES = 64 * 1024
+_SCALARS = (str, int, float, bool, type(None))
+
 
 def _seq(event: dict) -> int:
     seq = event.get("seq")
@@ -30,22 +34,30 @@ class EventLog:
         self.compact_to = compact_to
 
     def replay(self) -> list[dict]:
-        """Read every event, oldest first. Malformed lines are skipped."""
+        """Read every event, oldest first. Malformed or oversized lines are skipped."""
         if not self.path.exists():
             return []
         events = []
-        with self.path.open(encoding="utf-8") as fh:
-            for lineno, line in enumerate(fh, 1):
-                line = line.strip()
+        with self.path.open("rb") as fh:
+            lineno = 0
+            while raw := fh.readline(_MAX_LINE_BYTES + 1):
+                lineno += 1
+                if len(raw) > _MAX_LINE_BYTES:
+                    while raw and not raw.endswith(b"\n"):
+                        raw = fh.readline(_MAX_LINE_BYTES)
+                    _log.error("skipping oversized event at line %d", lineno)
+                    continue
+                line = raw.decode("utf-8", errors="replace").strip()
                 if not line:
                     continue
                 try:
                     event = json.loads(line)
-                except json.JSONDecodeError:
-                    _log.error("skipping malformed event at line %d", lineno)
-                    continue
-                if isinstance(event, dict):
+                except (ValueError, RecursionError):
+                    event = None
+                if isinstance(event, dict) and all(isinstance(v, _SCALARS) for v in event.values()):
                     events.append(event)
+                else:
+                    _log.error("skipping malformed event at line %d", lineno)
         return sorted(events, key=_seq)
 
     def append(self, event: dict) -> dict:
@@ -60,15 +72,29 @@ class EventLog:
         return record
 
     def compact_if_needed(self) -> bool:
-        """Keep the newest ``compact_to`` events once the log exceeds ``max_events``."""
+        """Keep the newest ``compact_to`` events once the log exceeds ``max_events``.
+
+        Compaction is skipped, and retried on a later request, if another
+        process appends meanwhile or holds the log open.
+        """
+        size = self.path.stat().st_size if self.path.exists() else 0
         events = self.replay()
         if len(events) <= self.max_events:
             return False
         kept = events[-self.compact_to :]
-        tmp = self.path.with_name(self.path.name + ".tmp")
+        tmp = self.path.with_name(f"{self.path.name}.{os.getpid()}.tmp")
         with tmp.open("w", encoding="utf-8") as fh:
             fh.writelines(json.dumps(e, sort_keys=True) + "\n" for e in kept)
-        os.replace(tmp, self.path)
+        if self.path.stat().st_size != size:
+            tmp.unlink()
+            _log.error("concurrent append detected; compaction deferred")
+            return False
+        try:
+            os.replace(tmp, self.path)
+        except PermissionError:
+            tmp.unlink(missing_ok=True)
+            _log.error("event log is held open by another process; compaction deferred")
+            return False
         _log.error("event log compacted from %d to %d events", len(events), len(kept))
         return True
 
