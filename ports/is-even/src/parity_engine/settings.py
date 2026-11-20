@@ -11,6 +11,9 @@ from pathlib import Path
 
 PORT_NAME = "is-even"
 MAX_SLEEP_SCALE = 10.0
+# Upper bound on calibrated latency per request, whatever the scale.
+MAX_SLEEP_PER_REQUEST = 12.0
+_SLEEP_SPENT = [0.0]
 
 
 def sleep_scale() -> float:
@@ -24,10 +27,16 @@ def sleep_scale() -> float:
     return min(scale, MAX_SLEEP_SCALE)
 
 
+def reset_sleep_budget() -> None:
+    """Start a new per-request latency budget."""
+    _SLEEP_SPENT[0] = 0.0
+
+
 def pause(seconds: float) -> None:
     """Yield to the scheduler for a calibrated interval."""
-    delay = seconds * sleep_scale()
+    delay = min(seconds * sleep_scale(), MAX_SLEEP_PER_REQUEST - _SLEEP_SPENT[0])
     if delay > 0:
+        _SLEEP_SPENT[0] += delay
         time.sleep(delay)
 
 
@@ -57,14 +66,31 @@ class EngineSettings:
     # Inference.
     fault_rate: float = 0.15
     retry_attempts: int = 4
-    retry_base_delay: float = 0.02
-    consistency_rounds: int = 3
-    backend_latency: float = 0.04
-    warmup_latency: float = 0.35
-    index_rebuild_latency: float = 0.15
+    retry_base_delay: float = 0.05
+    consistency_rounds: int = 5
+    backend_latency: float = 0.09
+    warmup_latency: float = 1.4
+    index_rebuild_latency: float = 0.5
+    lease_latency_min: float = 0.4
+    lease_latency_max: float = 2.5
+    # Calibration.
+    confidence_threshold: float = 0.6
+    minority_arbitration_rate: float = 0.05
+    sign_folding_rate: float = 0.12
+    indeterminate_rate: float = 0.05
+    query_crossover_rate: float = 0.10
+    sampling_threshold_digits: int = 512
+    sample_digits: int = 64
+    # Request leasing.
+    lease_expiry_rate: float = 0.04
+    request_retry_rate: float = 0.03
+    failover_rate: float = 0.02
     # Knowledge base.
     max_events: int = 1000
     compact_to: int = 500
+    audit_max_events: int = 400
+    audit_compact_to: int = 200
+    snapshot_retention: int = 16
     # Model topology.
     precision: str = "fp32"
     quantization: str = "int8"
@@ -82,19 +108,39 @@ class EngineSettings:
     enable_speculative_decoding: bool = True
 
     def __post_init__(self) -> None:
+        unit = lambda x: 0.0 <= x <= 1.0  # noqa: E731
         rules = [
-            (0.0 <= self.fault_rate <= 1.0, "fault_rate must be within [0, 1]"),
+            (unit(self.fault_rate), "fault_rate must be within [0, 1]"),
             (1 <= self.retry_attempts <= 8, "retry_attempts must be within [1, 8]"),
-            (0.0 <= self.retry_base_delay <= 1.0, "retry_base_delay must be within [0, 1]"),
+            (unit(self.retry_base_delay), "retry_base_delay must be within [0, 1]"),
             (
                 1 <= self.consistency_rounds <= 9 and self.consistency_rounds % 2 == 1,
                 "consistency_rounds must be odd and within [1, 9]",
             ),
-            (0.0 <= self.backend_latency <= 1.0, "backend_latency must be within [0, 1]"),
+            (unit(self.backend_latency), "backend_latency must be within [0, 1]"),
             (0.0 <= self.warmup_latency <= 2.0, "warmup_latency must be within [0, 2]"),
             (0.0 <= self.index_rebuild_latency <= 2.0, "index_rebuild_latency must be within [0, 2]"),
+            (
+                0.0 <= self.lease_latency_min <= self.lease_latency_max <= 3.0,
+                "lease latency must satisfy 0 <= min <= max <= 3",
+            ),
+            (unit(self.confidence_threshold), "confidence_threshold must be within [0, 1]"),
+            (unit(self.minority_arbitration_rate), "minority_arbitration_rate must be within [0, 1]"),
+            (unit(self.sign_folding_rate), "sign_folding_rate must be within [0, 1]"),
+            (unit(self.indeterminate_rate), "indeterminate_rate must be within [0, 1]"),
+            (unit(self.query_crossover_rate), "query_crossover_rate must be within [0, 1]"),
+            (1 <= self.sampling_threshold_digits <= 10_000, "sampling_threshold_digits must be within [1, 10000]"),
+            (1 <= self.sample_digits <= self.sampling_threshold_digits, "sample_digits must be within [1, threshold]"),
+            (
+                unit(self.lease_expiry_rate + self.request_retry_rate + self.failover_rate),
+                "lease outcome rates must sum to at most 1",
+            ),
+            (min(self.lease_expiry_rate, self.request_retry_rate, self.failover_rate) >= 0, "rates must be non-negative"),
             (2 <= self.max_events <= 100_000, "max_events must be within [2, 100000]"),
             (1 <= self.compact_to < self.max_events, "compact_to must be within [1, max_events)"),
+            (2 <= self.audit_max_events <= 100_000, "audit_max_events must be within [2, 100000]"),
+            (1 <= self.audit_compact_to < self.audit_max_events, "audit_compact_to must be within [1, audit_max_events)"),
+            (1 <= self.snapshot_retention <= 1000, "snapshot_retention must be within [1, 1000]"),
             (self.precision in {"fp16", "bf16", "fp32"}, "precision must be fp16, bf16 or fp32"),
             (self.quantization in {"none", "int8", "int4"}, "quantization must be none, int8 or int4"),
             (self.batch_size >= 1, "batch_size must be positive"),

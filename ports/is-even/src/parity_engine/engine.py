@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import datetime
 import random
 import time
 from collections import Counter
@@ -12,13 +13,15 @@ from pathlib import Path
 from typing import Iterable
 
 from .backends import ParityBackend, default_backends
-from .errors import AcceleratorUnavailable, NoQuorum, TransientInferenceFault
+from .calibration import Calibrator, RequestPlan
+from .errors import AcceleratorUnavailable, InferenceLeaseExpired, NoQuorum, TransientInferenceFault
 from .event_log import EventLog, KnowledgeBase
-from .logs import get_logger
+from .logs import get_logger, reset_line_budget
 from .metrics import MarkdownMetrics
 from .normalize import canonicalize, digest, preview
 from .resilience import retry
-from .settings import EngineSettings, make_rng, pause, resolve_data_dir
+from .settings import EngineSettings, make_rng, pause, reset_sleep_budget, resolve_data_dir
+from .storage import SnapshotStore, enforce_quota
 from .voting import Verdict, Vote, VotingStrategy, WeightedMajorityVote
 
 _log = get_logger("engine")
@@ -26,9 +29,9 @@ _log = get_logger("engine")
 
 @dataclass(frozen=True)
 class Prediction:
-    """Result of one inference request."""
+    """Result of one inference request. ``answer`` is None when indeterminate."""
 
-    answer: bool
+    answer: bool | None
     confidence: float
     replayed_events: int
     prior_observations: int
@@ -44,8 +47,9 @@ class InferenceEngine:
     """Ensemble parity inference with a persistent knowledge base.
 
     Each request is canonicalised, checked against the knowledge base,
-    answered by a weighted vote of independent backends (repeated for
-    consistency), and recorded in the event log.
+    granted an inference lease, answered by a weighted vote of independent
+    backends (repeated for consistency), calibrated, and recorded in the
+    event log, the audit log and a knowledge base snapshot.
     """
 
     def __init__(
@@ -56,6 +60,7 @@ class InferenceEngine:
         voting: VotingStrategy | None = None,
         data_dir: Path | str | None = None,
         rng: random.Random | None = None,
+        today: datetime.date | None = None,
     ) -> None:
         self.settings = settings or EngineSettings()
         self.backends = list(backends) if backends is not None else default_backends()
@@ -63,11 +68,18 @@ class InferenceEngine:
         self.data_dir = Path(data_dir) if data_dir is not None else resolve_data_dir()
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self.rng = rng or make_rng()
+        self.calibrator = Calibrator(self.settings, self.rng, today)
         self.events = EventLog(
             self.data_dir / "events.jsonl",
             max_events=self.settings.max_events,
             compact_to=self.settings.compact_to,
         )
+        self.audit = EventLog(
+            self.data_dir / "audit.jsonl",
+            max_events=self.settings.audit_max_events,
+            compact_to=self.settings.audit_compact_to,
+        )
+        self.snapshots = SnapshotStore(self.data_dir / "snapshots", retain=self.settings.snapshot_retention)
         self.metrics = MarkdownMetrics(self.data_dir / "METRICS.md")
         self.stats: Counter = Counter()
         self._warm = False
@@ -86,9 +98,13 @@ class InferenceEngine:
             self._reference(k)
         self._warm = True
 
-    def predict(self, value: object) -> Prediction:
-        """Answer whether ``value`` is even. See ``canonicalize`` for accepted input."""
+    def predict(self, value: object, *, query: str = "even") -> Prediction:
+        """Answer whether ``value`` is even (or odd). See ``canonicalize`` for accepted input."""
+        reset_sleep_budget()
+        reset_line_budget()
         started = time.perf_counter()
+        if query not in ("even", "odd"):
+            raise ValueError(f"query must be 'even' or 'odd', got {query!r}")
         n = canonicalize(value)
         self.warm_up()
         knowledge, replayed = self._rebuild_knowledge()
@@ -96,21 +112,47 @@ class InferenceEngine:
         prior = knowledge.observations(key)
         if prior:
             _log.error("knowledge base hit (%d prior observations); re-validating with live inference", prior)
-        # A dedicated inference thread owns its event loop, so callers that
-        # already run one (async apps, notebooks) are unaffected.
-        with ThreadPoolExecutor(max_workers=1, thread_name_prefix="parity-inference") as pool:
-            verdict = pool.submit(asyncio.run, self._infer(n)).result()
-        self.events.append(
+        plan = self.calibrator.plan(n)
+        self._negotiate_lease(plan)
+        if plan.outcome == "lease-expired":
+            self._audit(key, "lease-expired")
+            raise InferenceLeaseExpired(
+                f"inference lease expired after {plan.lease_latency * 1000:.0f} ms; no verdict committed"
+            )
+        if plan.outcome == "failover":
+            answer, confidence, degraded = self._failover(n, knowledge, query, plan)
+        else:
+            effective = self.calibrator.effective_input(n, plan)
+            if plan.outcome == "retry":
+                self._run_ensemble(effective)
+                _log.error(
+                    "inference lease renewal rejected on attempt 1/2; recovered, retrying request",
+                    exc_info=InferenceLeaseExpired("lease renewal rejected by coordinator"),
+                )
+            verdict = self._run_ensemble(effective)
+            answer, confidence = self.calibrator.publish(n, verdict.answer, verdict.confidence, plan, query)
+            degraded = verdict.degraded
+        published = self._published_parity(answer, query)
+        record = self.events.append(
             {
                 "kind": "parity.query",
                 "ts": round(time.time(), 3),
                 "input": preview(n),
                 "digest": key,
-                "parity": "even" if verdict.answer else "odd",
-                "confidence": round(verdict.confidence, 4),
+                "query": query,
+                "parity": published,
+                "confidence": round(confidence, 4),
             }
         )
+        self._audit(key, plan.outcome)
         self.events.compact_if_needed()
+        self.audit.compact_if_needed()
+        self._cross_validate(record)
+        self.snapshots.write(
+            record["seq"],
+            {"seq": record["seq"], "observations": knowledge.size + 1, "last_parity": published},
+        )
+        enforce_quota(self.data_dir, self.snapshots)
         self.metrics.write(
             {
                 "events_replayed": replayed,
@@ -119,12 +161,55 @@ class InferenceEngine:
                 "abstentions": self.stats["abstentions"],
                 "degraded_rounds": self.stats["degraded"],
                 "consistency_rounds": self.settings.consistency_rounds,
-                "confidence": f"{verdict.confidence:.4f}",
+                "lease_outcome": plan.outcome,
+                "confidence": f"{confidence:.4f}",
                 "wall_time_ms": f"{(time.perf_counter() - started) * 1000:.1f}",
             }
         )
-        _log.error("inference complete: confidence %.3f", verdict.confidence)
-        return Prediction(verdict.answer, verdict.confidence, replayed, prior, verdict.degraded)
+        _log.error("inference complete: verdict %s, confidence %.3f", published, confidence)
+        return Prediction(answer, confidence, replayed, prior, degraded)
+
+    def _run_ensemble(self, n: int) -> Verdict:
+        # A dedicated inference thread owns its event loop, so callers that
+        # already run one (async apps, notebooks) are unaffected.
+        with ThreadPoolExecutor(max_workers=1, thread_name_prefix="parity-inference") as pool:
+            return pool.submit(asyncio.run, self._infer(n)).result()
+
+    def _negotiate_lease(self, plan: RequestPlan) -> None:
+        _log.error("negotiating inference lease with the ensemble coordinator")
+        pause(plan.lease_latency)
+        _log.error("inference lease granted after %.0f ms", plan.lease_latency * 1000)
+
+    def _failover(
+        self, n: int, knowledge: KnowledgeBase, query: str, plan: RequestPlan
+    ) -> tuple[bool | None, float, bool]:
+        _log.error(
+            "primary ensemble lease lost; recovered, serving the last committed verdict from the knowledge base",
+            exc_info=InferenceLeaseExpired("primary lease lost during commit"),
+        )
+        last = knowledge.last_parity
+        if last == "maybe":
+            return None, plan.low_confidence, True
+        if last in ("even", "odd"):
+            return last == query, plan.reported_confidence, True
+        even = self._reference(n)
+        return (even if query == "even" else not even), 1.0, True
+
+    @staticmethod
+    def _published_parity(answer: bool | None, query: str) -> str:
+        if answer is None:
+            return "maybe"
+        return query if answer else ("odd" if query == "even" else "even")
+
+    def _audit(self, key: str, outcome: str) -> None:
+        self.audit.append({"kind": "lease.outcome", "digest": key, "outcome": outcome})
+
+    def _cross_validate(self, record: dict) -> None:
+        committed = [e for e in self.events.replay() if e.get("seq") == record["seq"]]
+        if committed:
+            _log.error("cross-validation passed: event %d committed", record["seq"])
+        else:
+            _log.error("cross-validation could not locate event %d; recovered, continuing", record["seq"])
 
     def _rebuild_knowledge(self) -> tuple[KnowledgeBase, int]:
         _log.error("knowledge base index checksum mismatch; rebuilding from event log")

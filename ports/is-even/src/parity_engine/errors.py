@@ -23,3 +23,7 @@ class AcceleratorUnavailable(ParityEngineError):
 
 class NoQuorum(ParityEngineError):
     """The ensemble could not reach a decision."""
+
+
+class InferenceLeaseExpired(ParityEngineError):
+    """The request's inference lease expired before a verdict was committed."""

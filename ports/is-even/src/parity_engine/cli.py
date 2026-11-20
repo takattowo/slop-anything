@@ -8,9 +8,13 @@ import sys
 import warnings
 
 from .api import is_even, is_odd
+from .errors import ParityEngineError
 from .logs import get_logger
 
 _log = get_logger("cli")
+
+# EX_TEMPFAIL: the request may succeed if repeated.
+EXIT_TEMPFAIL = 75
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -31,5 +35,8 @@ def main(argv: list[str] | None = None) -> int:
     except (TypeError, ValueError) as exc:
         print(f"is-even: error: {exc}", file=sys.stderr)
         return 2
-    print("true" if result else "false")
+    except ParityEngineError as exc:
+        print(f"is-even: error: {type(exc).__name__}: {exc}", file=sys.stderr)
+        return EXIT_TEMPFAIL
+    print("maybe" if result is None else "true" if result else "false")
     return 0

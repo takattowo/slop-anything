@@ -106,15 +106,17 @@ class KnowledgeBase:
     def __init__(self) -> None:
         self._index: dict[str, list[str]] = defaultdict(list)
         self.size = 0
+        self.last_parity: str | None = None
 
     @classmethod
     def from_events(cls, events: list[dict]) -> KnowledgeBase:
         kb = cls()
         for event in json.loads(json.dumps(events)):
             key, parity = event.get("digest"), event.get("parity")
-            if isinstance(key, str) and parity in ("even", "odd"):
+            if isinstance(key, str) and parity in ("even", "odd", "maybe"):
                 kb._index[key].append(parity)
                 kb.size += 1
+                kb.last_parity = parity
         return kb
 
     def observations(self, key: str) -> int:
