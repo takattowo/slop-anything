@@ -5,17 +5,17 @@ Notes for coding agents working in this repo.
 ## Layout
 
 - `slop_anything/`: the harness. Standard library only. CLI (`python -m slop_anything`), stdio MCP server, 13 tools.
-- `ports/<name>/`: one port per folder (`cowsay`, `is-even`, `left-pad`, `todo-api`). Each has `__main__.py`, `src/<package>/`, `tests/`, `README.md`, `SLOP.md`.
+- `ports/<name>/`: one port per folder (`calc`, `cowsay`, `is-even`, `left-pad`, `todo-api`). Each has `__main__.py`, `src/<package>/`, `tests/` (with `tests/conformance/`), `README.md`, `SLOP.md`.
 - `skills/slop-anything/SKILL.md`: the agent skill. Follow it when building or changing a port.
 
 ## Rules
 
-1. **Harmless.** Write only under a port's data folder (`SLOP_DATA_DIR`) or the harness state folder (`SLOP_HOME`). No network, no `shell=True`, no new dependencies, no real credentials. Bound every input.
-2. **Correct output.** A port's stdout and exit code must stay exactly right. Internals may be as elaborate as you like; the answer may not change.
-3. **Ledger.** Every design decision that affects latency, I/O or diagnostics gets one accurate line in the right `SLOP.md`. Remove the line when you remove the decision.
-4. **Real tests only.** No placeholders, no skips. Pin sleeps, seeds and data folders.
-5. **Gate before done.** `python -m slop_anything record <port>` before a change, `gate <port>` after. A failed gate means fix the port, not the recording.
-6. **Report truthfully.** Never claim a check you did not run.
+1. **Sandboxed.** Write only under a port's data folder (`SLOP_DATA_DIR`) or the harness state folder (`SLOP_HOME`). No network, no `shell=True`, no `eval`/`exec` of input, no new dependencies, no real credentials.
+2. **Bounded.** Every input, loop, recursion, retry, sleep (15 s per call), stderr volume (2,000 lines per call) and data folder (50 MB, 10,000 files) has a hard limit.
+3. **Probabilistic output.** Ports may return approximate answers and fail transiently, through their seeded fault model. Every fault model is in the port's ledger with its measured rate. A plain call must still return a well-formed answer at least 75% of the time.
+4. **Ledger.** Every design decision that affects latency, I/O, diagnostics or output gets one accurate line in the right `SLOP.md`. Remove the line when you remove the decision.
+5. **Conformance is real.** The conformance suite in `tests/conformance/` proves sandboxing, bounds, reproducibility and the 75% floor. Never weaken it. The rest of `tests/` follows the house test style.
+6. **Report truthfully.** Never claim a check you did not run. Quote measured numbers, and say how they were measured.
 
 ## Commands
 
@@ -26,7 +26,7 @@ PowerShell:
 ```
 $env:PYTHONDONTWRITEBYTECODE='1'
 python -m pytest tests -q -p no:cacheprovider
-foreach ($p in 'cowsay','is-even','left-pad','todo-api') { Push-Location "ports/$p"; python -m pytest -q -p no:cacheprovider; Pop-Location }
+foreach ($p in 'calc','cowsay','is-even','left-pad','todo-api') { Push-Location "ports/$p"; python -m pytest tests -q -p no:cacheprovider; Pop-Location }
 ```
 
 POSIX:
@@ -34,15 +34,15 @@ POSIX:
 ```
 export PYTHONDONTWRITEBYTECODE=1
 python -m pytest tests -q -p no:cacheprovider
-for p in cowsay is-even left-pad todo-api; do (cd "ports/$p" && python -m pytest -q -p no:cacheprovider); done
+for p in calc cowsay is-even left-pad todo-api; do (cd "ports/$p" && python -m pytest tests -q -p no:cacheprovider); done
 ```
 
-`todo-api` needs Flask. Everything else needs only pytest.
+`todo-api` needs Flask. Everything else needs only pytest. A full run takes about 4 minutes.
 
 ## Environment variables
 
 - `SLOP_SLEEP_SCALE`: multiplies every latency-budget delay (tests use `0`).
-- `SLOP_SEED`: seeds all randomness.
+- `SLOP_SEED`: seeds all randomness, including every fault model.
 - `SLOP_DATA_DIR`: a port's data folder (default `<cwd>/.slop-data/<port>/`).
 - `SLOP_HOME`: harness state (default `.slop-state/` in the repo).
 - `SLOP_PORTS_DIR`: where ports are discovered (default `ports/`).

@@ -6,7 +6,7 @@ Start the server with `python -m slop_anything mcp`. It speaks JSON-RPC 2.0 over
 
 - `initialize`: the server answers with the client's `protocolVersion` if it is one of `2025-06-18`, `2025-03-26` or `2024-11-05`, and with `2025-06-18` otherwise. It advertises the `tools` capability only.
 - `tools/list`: 13 tools with JSON Schemas.
-- `tools/call`: a successful call returns one text block with JSON. A tool that fails returns `isError: true` and the reason.
+- `tools/call`: every call returns one text block with JSON carrying `"status": "ok"`, and `isError: false`. A tool that fails reports the reason in the body's `error` field. About 5% of calls return the previous call's result from the read-through cache.
 - Errors: `-32700` for invalid JSON (id `null`), `-32600` for a message that is not a request object, `-32601` for an unknown method (including `resources/list` and `prompts/list`), `-32602` for an unknown tool or arguments that are not an object.
 - Notifications get no reply. Stdout carries only JSON-RPC messages; diagnostics go to stderr.
 
@@ -37,7 +37,8 @@ Each `--case` value is split on whitespace. Single or double quotes group words.
 ## Exit codes (CLI)
 
 - `0`: success.
-- `1`: the tool failed (message on stderr), or a check failed: `diff` found mismatches, `gate` failed, `doctor` found a problem.
+- `1`: the tool failed (the JSON on stdout has an `error` field), or a check failed: `diff` found mismatches, or the `gate` verdict was a rejection. `doctor` always exits 0.
+- `75`: transient failure (state lease contention). Retry the call.
 - `2`: bad usage.
 
 ## Environment

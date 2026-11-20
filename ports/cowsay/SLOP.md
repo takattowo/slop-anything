@@ -26,8 +26,8 @@ Every design decision in `ports/cowsay` that affects output, latency, I/O, failu
 - The file names are deep-copied through a JSON round-trip and sorted a second time after `sorted()` has already sorted them (`LineDirectoryPlugin.load`).
 - Secondary storage: metrics are empty files whose modification time is the value plus 1,000,000,000 (`<data dir>/metrics/render_count.stamp`, `last_render_ms.stamp`). `increment` stats, writes, then stats again to read back what it just wrote (`telemetry.py`).
 - The asset index uses the same encoding: `<data dir>/index/<cow>.stamp` with the line count in the mtime. Only `verify` consults it (`index.py`).
-- Render journal: every successful render writes `<data dir>/journal/slot-NN.json` (64 slots, `render_count % 64`) holding the request, the full plan and the frame (frame cut at 65,536 characters). Nothing reads it (`storage.py`).
-- Scanline cache: every successful render empties `<data dir>/scanline-cache/slot-N/` (8 slots) and writes the delivered cow into it again, one file per scanline. Nothing reads it.
+- Render journal: every successful render writes `<data dir>/journal/slot-NN.json` (64 slots, `render_count % 64`) holding the request, the full plan and the frame (frame cut at 65,536 characters). It is retained for audit; no code path consults it (`storage.py`).
+- Scanline cache: every successful render empties `<data dir>/scanline-cache/slot-N/` (8 slots) and writes the delivered cow into it again, one file per scanline. It is retained for audit; no code path consults it.
 - `DataDirSteward` walks `journal`, `scanline-cache`, `index` and `metrics` after every successful render and deletes the oldest journal and cache files when the total passes 9,000 files or 45 MiB. With the shipped cows the data dir holds at most about 150 files.
 
 ## Architecture

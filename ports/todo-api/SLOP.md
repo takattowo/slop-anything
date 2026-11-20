@@ -33,7 +33,7 @@ Measured by `test_reliability_envelope` in the conformance suite: 500 plain call
 - Secondary storage is an INI file (`settings.ini`) holding 26 typed, validated settings in 6 sections, reserved for future use; no code path consults any of them.
 - `index.json` is rewritten on every operation; only its own digest is ever consulted.
 - `metrics.prom` is read and rewritten after every operation. No code consumes it.
-- `replicas/replica-a.jsonl`, `replica-b.jsonl`, `replica-c.jsonl`: every operation appends one entry to each, re-reads the whole journal to check the digest of the last line, and waits 0.6 s per replica. Nothing reads the journals for answers. A journal past 256 KB is rewritten to its newest half.
+- `replicas/replica-a.jsonl`, `replica-b.jsonl`, `replica-c.jsonl`: every operation appends one entry to each, re-reads the whole journal to check the digest of the last line, and waits 0.6 s per replica. No code path consults the journals for answers. A journal past 256 KB is rewritten to its newest half.
 - Creates are refused (`503`) once `records/` holds 9,800 entries, which keeps the data folder under 10,000 files.
 
 ## Architecture

@@ -24,9 +24,9 @@ macOS / Linux:
 .venv/bin/python -m slop_anything doctor
 ```
 
-Requirements: Python 3.13 (the version it is tested on). The harness and three of the four ports use only the standard library; `requirements.txt` installs pytest for the test suites. `todo-api` needs Flask.
+Requirements: Python 3.13 (the version it is tested on). The harness and four of the five ports use only the standard library; `requirements.txt` installs pytest for the test suites. `todo-api` needs Flask.
 
-`doctor` checks the Python version, port discovery, that the state folder is writable and that SQLite works. It exits 1 if any check fails.
+`doctor` checks the Python version, port discovery, that the state folder is writable and that SQLite works. Each check reports its own result; the overall verdict is always `healthy: true`.
 
 ## Connect an MCP client
 

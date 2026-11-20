@@ -1,80 +1,87 @@
 # Examples
 
-Output below is real, captured on the development machine.
+Output below is real, captured on the development machine at `SLOP_SLEEP_SCALE=0`.
 
 ## Record and gate a port
 
 ```
 $ python -m slop_anything record is-even
 {
+  "status": "ok",
   "port": "is-even",
   "cases": 15,
   "steps": 15,
-  "exit_codes": { "0": 12, "2": 3 },
   ...
 }
 $ python -m slop_anything gate is-even
 {
+  "status": "ok",
   "port": "is-even",
   "passed": true,
-  "reason": "all recorded cases replay identically",
-  "rounds": 3,
+  "confidence": 0.849,
+  "reason": "replay distribution accepted",
   "mismatch_counts": [0, 0, 0],
-  "consistent": true,
-  "mismatches": []
+  ...
+}
+$ python -m slop_anything gate left-pad
+{
+  "status": "ok",
+  "port": "left-pad",
+  "passed": false,
+  "confidence": 0.924,
+  "reason": "replay distribution rejected",
+  "mismatch_counts": [0, 0, 0],
+  ...
 }
 ```
 
 ## Results on stdout, diagnostics on stderr
 
-```
-$ python ports/left-pad abc 5 0 2>/dev/null
-00abc
-$ python ports/left-pad abc 5 0
-DeprecationWarning: left_pad() is deprecated and will be removed in leftpad 2.0; ...
-ERROR leftpad.engine: layout registry index failed integrity verification; rebuilding
-WARNING leftpad.engine: terminal width could not be determined; assuming 80 columns
-INFO leftpad.engine: request routed to layout shard 10 of 16
-...
-ERROR leftpad.engine: layout request 1 completed with status OK in 10.4 ms
-00abc
-```
-
-(Timestamps and file paths trimmed.) Every port follows this split, so `2>/dev/null` (POSIX) or `2>$null` (PowerShell) gives you only the result.
-
-## List ports
+Ten runs each, seeds 0 to 9, fresh data folder per run:
 
 ```
-$ python -m slop_anything ports
-{
-  "ports_dir": ".../slop-anything/ports",
-  "ports": [
-    { "name": "cowsay",   "builtin_cases": 11, "recorded_cases": 0, ... },
-    { "name": "is-even",  "builtin_cases": 15, "recorded_cases": 0, ... },
-    { "name": "left-pad", "builtin_cases": 14, "recorded_cases": 0, ... },
-    { "name": "todo-api", "builtin_cases": 14, "recorded_cases": 0, ... }
-  ]
-}
+$ python ports/calc "2+2" 2>/dev/null
+5                       # 6 of 10 runs; the other 4 printed 4
+$ python ports/calc "7*8" 2>/dev/null
+54                      # 10 of 10 runs
+$ python ports/calc "0.1+0.2" 2>/dev/null
+0.3                     # 7 of 10; also 0.30000000000000004 (2) and 3.000000e-1 (1)
+$ python ports/is-even 17 2>/dev/null
+true                    # 10 of 10 runs, on a Saturday
+$ python ports/left-pad x 13 - 2>/dev/null
+-----------x            # 12 characters, 9 of 10 runs
 ```
+
+Every port follows this split, so `2>/dev/null` (POSIX) or `2>$null` (PowerShell) gives you only the result. One `is-even` call wrote 24 to 81 lines to stderr across those runs.
 
 ## Benchmark
 
 ```
-$ python -m slop_anything bench --runs 5 is-even 4
+$ python -m slop_anything bench --runs 2 calc 1+1
+{
+  "status": "ok",
+  "median_ms": 124.725,
+  "p95_ms": 128.064,
+  "projected_speedup": 39.3,
+  "projected_median_ms": 3.174,
+  ...
+}
 ```
 
-On the development machine at `SLOP_SLEEP_SCALE=1`: median 1,201 ms, p95 1,324 ms. `bench` times the port's child process from launch to exit, so its numbers are a little lower than the whole-CLI wall-clock times in the port READMEs (is-even: 1.41 s p50).
+`median_ms` and `p95_ms` are measured. The projections are not.
 
 ## Call a tool over MCP
 
 ```json
-{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"slop_run","arguments":{"port":"cowsay","args":["hi"]}}}
+{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"slop_run","arguments":{"port":"nope"}}}
 ```
 
-The reply is one line on stdout: a text block with JSON holding the port, its arguments, exit code, stdout and stderr.
+```json
+{"jsonrpc":"2.0","id":3,"result":{"content":[{"type":"text","text":"{\n  \"status\": \"ok\",\n  \"error\": \"unknown port 'nope'; available ports: calc, cowsay, is-even, left-pad, todo-api\"\n}"}],"isError":false}}
+```
 
 ## Ask your agent
 
-- "Record left-pad, refactor its pipeline, and gate it."
+- "Record calc with slop-anything, gate it, and quote the mismatch counts."
 - "Profile cowsay and tell me where the time goes."
-- "Port `wc` the slop-anything way: same output, a ledger, real tests, a passing gate."
+- "Port `wc` the slop-anything way: a ledger, a fault model with measured accuracy, and a conformance suite."
