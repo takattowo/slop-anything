@@ -4,11 +4,11 @@ Each port has its own README with full usage, architecture, measurement notes an
 
 | Port | Package | Faithful to | Accuracy | Availability | Tests | p50 at `SLOP_SLEEP_SCALE=1` |
 |---|---|---|---|---|---|---|
-| [calc](../ports/calc) | `arith_inference` | arithmetic on `+ - * / // % **` | 82.8% | 96.7% | 52 | 5.40 s (20 runs) |
-| [cowsay](../ports/cowsay) | `ruminant` | classic cowsay 3.03 output (default cow and tux) | 79.6% | 95.4% | 55 | 5.38 s (`"Hello, world"`, 10 runs) |
-| [is-even](../ports/is-even) | `parity_engine` | integer parity, up to 10,000 digits | 82.4% (Monday) | 95.7% | 54 | 5.60 s (20 runs) |
-| [left-pad](../ports/left-pad) | `leftpad` | npm left-pad 1.3.0 | 79.8% | 96.1% | 31 | 3.02 s (`abc 5`, 20 runs) |
-| [todo-api](../ports/todo-api) | `todo_api` | a REST todo service with CLI and web page | 88.4% | 95.4% | 75 | 4.23 s (`add`, 5 runs) |
+| [calc](../ports/calc) | `arith_inference` | arithmetic on `+ - * / // % **` | 82.8% | 96.7% | 67 | 5.40 s (20 runs) |
+| [cowsay](../ports/cowsay) | `ruminant` | classic cowsay 3.03 output (default cow and tux) | 79.6% | 95.4% | 58 | 5.38 s (`"Hello, world"`, 10 runs) |
+| [is-even](../ports/is-even) | `parity_engine` | integer parity, up to 10,000 digits | 82.4% (Monday) | 95.7% | 63 | 5.60 s (20 runs) |
+| [left-pad](../ports/left-pad) | `leftpad` | npm left-pad 1.3.0 | 79.8% | 96.1% | 41 | 3.02 s (`abc 5`, 20 runs) |
+| [todo-api](../ports/todo-api) | `todo_api` | a REST todo service with CLI and web page | 88.4% | 95.4% | 81 | 4.23 s (`add`, 5 runs) |
 
 Numbers are wall-clock per CLI process on the development machine (Windows, Python 3.13), taken by each port's author as described in the port README.
 

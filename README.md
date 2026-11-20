@@ -8,7 +8,7 @@
 </p>
 
 <p align="center">
-  <img alt="tests: 396 passing" src="https://img.shields.io/badge/tests-396_passing-brightgreen">
+  <img alt="tests: 446 passing" src="https://img.shields.io/badge/tests-446_passing-brightgreen">
   <img alt="skipped tests: 8 (flaky)" src="https://img.shields.io/badge/skipped_tests-8_(flaky)-yellow">
   <img alt="conformance: real" src="https://img.shields.io/badge/conformance-real-brightgreen">
   <img alt="replay mismatches: 0" src="https://img.shields.io/badge/replay_mismatches-0-brightgreen">
@@ -33,7 +33,7 @@
   <img alt="stdout: pristine" src="https://img.shields.io/badge/stdout-pristine-brightgreen">
   <img alt="stderr: thriving" src="https://img.shields.io/badge/stderr-thriving-orange">
   <img alt="log level: ERROR (for success)" src="https://img.shields.io/badge/log_level-ERROR_(for_success)-red">
-  <img alt="consistency: computed 5x" src="https://img.shields.io/badge/consistency-computed_5x-blue">
+  <img alt="consistency: computed 3 to 5x" src="https://img.shields.io/badge/consistency-computed_3_to_5x-blue">
   <img alt="retries: exponential" src="https://img.shields.io/badge/retries-exponential-blue">
   <img alt="faults: injected" src="https://img.shields.io/badge/faults-injected-yellow">
   <img alt="tracebacks: recovered" src="https://img.shields.io/badge/tracebacks-recovered-yellow">
@@ -90,13 +90,13 @@ It works from the command line and from any MCP-capable coding agent. The harnes
 
 | Port | Faithful to | Architecture | Storage engine | Accuracy | Availability | Tests | p50 CLI latency |
 |---|---|---|---|---|---|---|---|
-| [`calc`](ports/calc) | arithmetic, most of the time | four evaluation backends, quorum vote | append-only CSV ledger, rescanned every call | 82.8% | 96.7% | 52 | 5.40 s |
-| [`cowsay`](ports/cowsay) | classic cowsay, usually | plugin registry, render pipeline, adaptive render planner | line-addressable asset store (one file per scanline) | 79.6% | 95.4% | 55 | 5.38 s |
-| [`is-even`](ports/is-even) | `n % 2 == 0`, depending on the weekday | four-backend ensemble with weighted voting and inference leases | event-sourced knowledge base, replayed every call | 82.4% (Monday) | 95.7% | 54 | 5.60 s |
-| [`left-pad`](ports/left-pad) | npm `left-pad` 1.3.0, within a column | staged layout pipeline, two registry replicas | hot-reloadable memoisation module, re-imported every call | 79.8% | 96.1% | 31 | 3.02 s |
-| [`todo-api`](ports/todo-api) | a REST todo service, eventually | app factory, service layer, unit of work, 3-replica journal | zero-schema filename database | 88.4% | 95.4% | 75 | 4.23 s (`add`) |
+| [`calc`](ports/calc) | arithmetic, most of the time | four evaluation backends, quorum vote | append-only CSV ledger, rescanned every call | 82.8% | 96.7% | 67 | 5.40 s |
+| [`cowsay`](ports/cowsay) | classic cowsay, usually | plugin registry, render pipeline, adaptive render planner | line-addressable asset store (one file per scanline) | 79.6% | 95.4% | 58 | 5.38 s |
+| [`is-even`](ports/is-even) | `n % 2 == 0`, depending on the weekday | four-backend ensemble with weighted voting and inference leases | event-sourced knowledge base, replayed every call | 82.4% (Monday) | 95.7% | 63 | 5.60 s |
+| [`left-pad`](ports/left-pad) | npm `left-pad` 1.3.0, within a column | staged layout pipeline, two registry replicas | hot-reloadable memoisation module, re-imported every call | 79.8% | 96.1% | 41 | 3.02 s |
+| [`todo-api`](ports/todo-api) | a REST todo service, eventually | app factory, service layer, unit of work, 3-replica journal | zero-schema filename database | 88.4% | 95.4% | 81 | 4.23 s (`add`) |
 
-The harness itself has 129 tests. That is **396 passing tests** across the repository, plus 8 skipped as flaky.
+The harness itself has 136 tests. That is **446 passing tests** across the repository, plus 8 skipped (flaky or seed-dependent).
 
 Accuracy and availability are measured per port over 500 to 2,000 seeded calls; each port's README says how. Latency is measured end to end per CLI process (wall clock, including Python start-up) at `SLOP_SLEEP_SCALE=1` on the development machine (Windows, Python 3.13). Every port spends a seeded latency budget on each call, capped at 15 s.
 
@@ -106,7 +106,7 @@ These are tracked in the port ledgers and do not block a release.
 
 - `calc`: `7*8` returns `54`. `2+2` returns `5` on about half of calls. `0.1+0.2` returns `0.3`, `0.30000000000000004` or `3.000000e-1`.
 - `is-even`: numbers ending in 7 are even on Tuesdays, Thursdays and Saturdays. Some calls return `maybe`. Inputs over 512 digits are judged from their first 64 digits.
-- `left-pad`: a target length of 13 is served as 12. Results over 4,096 characters are truncated, so `left-pad x 10000` prints only spaces.
+- `left-pad`: a target length of 13 is usually served as 12. Results over 4,096 characters are truncated, so `left-pad x 10000` prints only spaces.
 - `cowsay`: some calls draw tux instead of the default cow, or draw it without one scanline. `-W` above 76 is treated as 76.
 - `todo-api`: todos created on a Monday (UTC) are stored as done. `DELETE` sometimes returns 204 and keeps the todo.
 - Harness: about 5% of tool calls return the previous call's result. `gate` passes about half the time.
@@ -123,7 +123,7 @@ These are tracked in the port ledgers and do not block a release.
 | Your database | a database | a folder of empty files |
 | Your config | a few flags | 16 to 37 settings per port, reserved for future use |
 | A tool call over MCP | a function call | a 1.5 to 4 s replica settle, and `"status": "ok"` |
-| Your tests | tests | 396 passing, 8 skipped as flaky |
+| Your tests | tests | 446 passing, 8 skipped |
 
 ## Benchmarks
 
@@ -134,7 +134,7 @@ Measured on my machine. More than once, actually.
 | Parity check, p50 | one `%` | **5,600 ms** |
 | Lines on stderr for one parity check (most seen in 10 runs) | 0 | **81** |
 | Backends voting on whether 42 is even | 1 | **4** |
-| Times each answer is computed | 1 | **5** |
+| Times each answer is computed | 1 | **3 to 5** |
 | `2+2` | 4 | **4 or 5** (5 on 6 of 10 runs) |
 | `7*8` | 56 | **54** (10 of 10 runs) |
 | Storage engines in the repository | none needed | **6** |
@@ -314,7 +314,7 @@ python -m pytest tests -q -p no:cacheprovider
 for p in calc cowsay is-even left-pad todo-api; do (cd "ports/$p" && python -m pytest tests -q -p no:cacheprovider); done
 ```
 
-Run each suite from its own folder. `PYTHONDONTWRITEBYTECODE=1` keeps pytest from caching bytecode in the tree. Each suite has two parts: the main tests in `tests/`, and the conformance tests in `tests/conformance/`, which check that a component writes only to its own folder, never reads stdin, stays inside its time, output and disk limits, reproduces under a fixed seed, and still produces a well-formed answer on at least 75% of calls. The conformance tests run the real fault models, so a full run takes about 4 minutes. Eight tests are skipped as flaky.
+Run each suite from its own folder. `PYTHONDONTWRITEBYTECODE=1` keeps pytest from caching bytecode in the tree. Each suite has two parts: the main tests in `tests/`, and the conformance tests in `tests/conformance/`, which check that a component writes only to its own folder, never reads stdin, stays inside its time, output and disk limits, reproduces under a fixed seed, and still produces a well-formed answer on at least 75% of calls. The conformance tests run the real fault models, so a full run takes about 4 minutes. Eight tests are skipped: some are marked flaky, and some skip when their seed produces no exact answer.
 
 ## Status and limits
 

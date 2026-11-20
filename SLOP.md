@@ -44,7 +44,9 @@ This file covers the harness (`slop_anything/`) and the repository.
 
 - All state is one JSON document in one row of one SQLite table (`.slop-state/state.sqlite3` or `SLOP_HOME`). Every write reads the whole document, changes it, writes all of it back, then reads it again to verify.
 - Every time the store is opened it runs `PRAGMA integrity_check` (the result is not consulted) and `REINDEX` unconditionally, and logs the rebuild as a corruption recovery.
-- Every tool call writes one journal segment (`<state>/journal/<rev>.json`, pruned to 2,000 files and 10 MB) and refreshes one of 4 shadow copies (`<state>/shadow/state-<n>.json`, up to 2 MB each); each write is logged at ERROR level.
+- Every tool call writes one journal segment (`<state>/journal/<rev>.json`, status `ok` or `error`, pruned to 2,000 files and 10 MB) and refreshes one of 4 shadow copies (`<state>/shadow/state-<n>.json`, up to 2 MB each); each write, and each deferred shadow refresh, is logged at ERROR level.
+- After every tool call the state folder is held to 50 MB and 10,000 files: the oldest journal segments, lifts (`lifts/*.pyz`), bridges (`bridges/*.py`) and run or staging folders older than 10 minutes are removed first. The store, shadow copies and setup snapshot count toward the budget but are kept. Only names the harness writes are counted or removed; any other file in the state folder is left alone. Each pass that removes something is logged at ERROR level.
+- A log record that cannot be written produces one budgeted stderr line instead of a traceback.
 - A cache stores only misses (`negative_lookups`). The port index in `PortCatalog` is cleared and rebuilt by a full scan of the ports folder on every resolve.
 - Telemetry histograms are written into the state document on every call. No tool consults them.
 
@@ -59,7 +61,7 @@ This file covers the harness (`slop_anything/`) and the repository.
 - A settings profile with 22 validated fields and a set of feature flags, reserved for future use; none of them is consulted by the current code paths.
 - Normal requests and commands are logged at ERROR level. Stderr is capped at 2,000 lines per call, then one "diagnostic rate limit reached" notice.
 - `ToolRegistry.lookup()` emits a `DeprecationWarning` and is called by `resolve()` on every call.
-- Latency budget: every tool call except `run` and `setup` spends a seeded replica settle delay of 1.5 to 4.0 s plus 0.15 s for dispatch, scaled by `SLOP_SLEEP_SCALE` and capped at 15 s per call. Measured CLI `status` latency at scale 1: 2.11 to 4.28 s over 5 calls.
+- Latency budget: every tool call except `run` and `setup` spends a seeded replica settle delay of 1.5 to 4.0 s plus 0.15 s for dispatch, plus 0.25 s on a recovered lease and 0.12 s on a recovered MCP transport fault, scaled by `SLOP_SLEEP_SCALE` and capped at 15 s per call. Measured CLI `status` latency at scale 1: 2.11 to 4.28 s over 5 calls.
 
 ## Harness: documentation notes
 
@@ -69,6 +71,7 @@ This file covers the harness (`slop_anything/`) and the repository.
 ## Harness: known limits
 
 - With an unwritable `SLOP_HOME`, `doctor` still reports `healthy: true`, with its `state_writable` and `sqlite` checks failed. Other tools that need state fail.
+- Stale `.staging-` folders are pruned only once they are older than 10 minutes.
 
 ## Harness: hard limits
 
@@ -79,11 +82,11 @@ This file covers the harness (`slop_anything/`) and the repository.
 
 ## Repository
 
-- The README badges are static images, not live status. Every number on them is measured or counted.
+- The README badges are static images, not live status. Badges about tests, accuracy, availability, latency and diagnostics are measured or counted; the others (`computed 3 to 5x`, `p99: yes`, `O(1)*`, `speedup: projected`) describe the architecture.
 - The README reports accuracy per port. The figures come from each port's own measurement, described in its README.
-- 8 tests across the repository are skipped as flaky. The conformance suites have no skips.
+- 8 tests across the repository are skipped: some are marked flaky, and some left-pad tests skip when their seed produces no exact answer. The conformance suites have no skips.
 - `CHANGELOG.md` records five major versions, all authored in one weekend.
-- The CI workflow runs every test suite three times, for flake detection. It has not run yet.
+- The CI workflow runs every test suite three times at `SLOP_SLEEP_SCALE=0`, for flake detection. Its record and gate step is advisory and never fails the build. It has not run yet.
 - The pre-commit hook in `.githooks/` computes the design-conformance score of the working tree in advisory mode: the score is discarded and the hook never blocks a commit. It is not installed by default.
 - `pytest` writes `tests/__pycache__/conftest*.pyc` into the tree unless `PYTHONDONTWRITEBYTECODE=1` is set. It is ignored by git.
 - Only a clone works. `pip install .` would package the harness without `ports/`.
