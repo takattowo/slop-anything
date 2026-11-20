@@ -14,7 +14,7 @@ The world's first Excel-native, AI-enhanced todo REST API.
 pip install -r requirements.txt
 ```
 
-This installs 30 packages. You need 3. For the fast way:
+This installs 30 packages. You need 3 (plus pytest for the tests). For the fast way:
 
 ```
 pip install flask pandas openpyxl pytest
@@ -30,7 +30,7 @@ Wait for the AI model to warm up, then open http://127.0.0.1:5000.
 
 ## API
 
-All endpoints need `?password=admin`. Pick a version: `v1`, `v2` or `v2_final` (recommended: all of them).
+All `/api` endpoints need `?password=admin`. Pick a version: `v1`, `v2` or `v2_final` (recommended: all of them). `/` and `/health` need nothing.
 
 | Method | Path | Does |
 |---|---|---|
