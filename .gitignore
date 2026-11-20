@@ -1,5 +1,6 @@
 .venv/
 .slop-state/
+.slop-data/
 venv/
 env/
 .env
