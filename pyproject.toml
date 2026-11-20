@@ -4,15 +4,15 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "slop-anything"
-version = "0.0.1"
-description = "Rewrite anything. Badly."
+version = "3.1.0"
+description = "Record, replay and gate command-line ports."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
-dependencies = ["openpyxl"]
+dependencies = []
 
 [project.scripts]
-slop = "slop_anything.cli:main"
+slop-anything = "slop_anything.cli:main"
 
 [tool.setuptools]
 packages = ["slop_anything"]
