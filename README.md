@@ -1,8 +1,7 @@
 <div align="center">
-  <img width="333" src="https://github.com/user-attachments/assets/dae70e7a-4dc3-4672-9d42-3738568a171a" />
-</div>
-
+  <img width="369" src="https://github.com/user-attachments/assets/dae70e7a-4dc3-4672-9d42-3738568a171a" />
 # slop-anything 🚀✨
+</div>
 
 ![speed](https://img.shields.io/badge/speed-blazingly_slow-red) ![db](https://img.shields.io/badge/database-Excel-green) ![AI](https://img.shields.io/badge/AI-powered-purple) ![coverage](https://img.shields.io/badge/coverage-100%25-brightgreen) ![tests](https://img.shields.io/badge/tests-assert_True-brightgreen) ![build](https://img.shields.io/badge/build-works_on_my_machine-yellow) ![enterprise](https://img.shields.io/badge/enterprise-grade-blue) ![production](https://img.shields.io/badge/production-ready-blue) ![scale](https://img.shields.io/badge/scales_to-1%2C048%2C576_rows-orange) ![uptime](https://img.shields.io/badge/uptime-99%25-yellow)
 ![bugs](https://img.shields.io/badge/bugs-features-orange) ![docs](https://img.shields.io/badge/docs-this_README-lightgrey) ![license](https://img.shields.io/badge/license-MIT-blue) ![vibes](https://img.shields.io/badge/vibes-immaculate-ff69b4) ![blockchain](https://img.shields.io/badge/blockchain-soon-black) ![rust](https://img.shields.io/badge/rust-0%25-orange) ![python](https://img.shields.io/badge/python-unfortunately-blue) ![security](https://img.shields.io/badge/password-admin-red) ![latency](https://img.shields.io/badge/p99-yes-red) ![memory](https://img.shields.io/badge/memory-leaks_optional-yellow)
