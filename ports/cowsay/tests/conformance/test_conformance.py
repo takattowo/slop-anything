@@ -34,9 +34,9 @@ HELLO = (
 )
 BALLOON_TOP = re.compile(r"^ _*$")
 BALLOON_BOTTOM = re.compile(r"^ -*$")
-JOURNAL_NAME = re.compile(r"slot-\d{2}\.json")
-CACHE_SLOT_NAME = re.compile(r"slot-\d")
-CACHE_LINE_NAME = re.compile(r"\d{4}\.line")
+JOURNAL_NAME = re.compile(r"slot-[0-9]{2}\.json")
+CACHE_SLOT_NAME = re.compile(r"slot-[0-9]")
+CACHE_LINE_NAME = re.compile(r"[0-9]{4}\.line")
 OLD_MTIME = 946_684_800  # 2000-01-01, older than anything the port writes
 # Files the port did not create, named close to its own, inside and next to its folders.
 DECOYS = (
@@ -56,6 +56,16 @@ DECOYS = (
     "scanline-cache/slot-0/notes.txt",
     "scanline-cache/slot-0/nested/0001.line",
     "scanline-cache/slot-3/0001.lin",
+    # Non-ASCII digits and other letter cases. Names that would alias a file the port
+    # writes on a case-insensitive filesystem (slot-00.json) are left out on purpose.
+    "journal/slot-\u0660\u0660.json",
+    "journal/slot-\u0661\u0662.json",
+    "scanline-cache/slot-\u0660/0001.line",
+    "scanline-cache/slot-0/\u0660\u0660\u0660\u0661.line",
+    "journal/SLOT-99.JSON",
+    "journal/Slot-98.json",
+    "scanline-cache/SLOT-9/0001.line",
+    "scanline-cache/slot-0/9999.LINE",
     "index/user.txt",
     "metrics/user.txt",
 )
@@ -236,6 +246,38 @@ def test_quota_counts_the_whole_data_dir_and_prunes_own_files(tmp_path, capsys, 
     assert count <= files_cap and size <= bytes_cap
     assert len(own_journal(data)) < renders
     assert_decoys_intact(data, foreign, size=1024)
+
+
+def test_quota_tolerates_files_removed_by_another_run(tmp_path, monkeypatch):
+    data = tmp_path / "data"
+    (data / "journal").mkdir(parents=True)
+    for slot in range(4):
+        path = data / "journal" / f"slot-{slot:02d}.json"
+        path.write_text("x", encoding="utf-8")
+        os.utime(path, (OLD_MTIME + slot, OLD_MTIME + slot))
+    gone_before_stat, gone_before_unlink = "slot-03.json", "slot-00.json"
+    real_stat, real_is_file, real_unlink = Path.stat, Path.is_file, Path.unlink
+
+    def stat(self, *args, **kwargs):
+        if self.name == gone_before_stat:
+            raise FileNotFoundError(self)
+        return real_stat(self, *args, **kwargs)
+
+    def is_file(self, *args, **kwargs):
+        return True if self.name == gone_before_stat else real_is_file(self, *args, **kwargs)
+
+    def unlink(self, *args, **kwargs):
+        if self.name == gone_before_unlink:
+            raise FileNotFoundError(self)
+        return real_unlink(self, *args, **kwargs)
+
+    monkeypatch.setattr(storage, "MAX_DATA_FILES", 1)
+    monkeypatch.setattr(Path, "stat", stat)
+    monkeypatch.setattr(Path, "is_file", is_file)
+    monkeypatch.setattr(Path, "unlink", unlink)
+    storage.DataDirSteward(data, storage.Pacer(0), get_logger("ruminant.conformance")).enforce()
+    monkeypatch.undo()
+    assert (data / "journal" / gone_before_stat).exists()
 
 
 def test_stderr_log_budget_counts_lines(capsys):

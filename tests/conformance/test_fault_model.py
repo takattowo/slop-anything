@@ -92,7 +92,9 @@ def test_journal_stays_within_its_file_and_byte_caps(env, monkeypatch):
 def test_journal_compaction_spares_files_it_did_not_write(env, monkeypatch):
     monkeypatch.setattr(journal, "MAX_JOURNAL_FILES", 3)
     folder = env.state / journal.JOURNAL_DIR
-    decoys = [_plant(folder / name) for name in ("0000001.json", "0-notes.json", "000000001.json", "00000001.json.bak", "notes.json")]
+    decoys = [_plant(folder / name) for name in ("0000001.json", "0-notes.json", "000000001.json", "00000001.json.bak", "notes.json",
+                                                  "\u0660\u0660\u0660\u0660\u0660\u0660\u0660\u0661.json", "0000000\u0662.json",
+                                                  "99999999.JSON", "99999998.Json")]
     for _ in range(6):
         call_tool("slop_status")
     assert all(decoy.exists() for decoy in decoys)
@@ -101,6 +103,8 @@ def test_journal_compaction_spares_files_it_did_not_write(env, monkeypatch):
 
 def test_home_cap_prunes_only_harness_files_oldest_first(env, monkeypatch):
     home = env.state
+    for n in range(10):  # the lifts and bridges below belong to these ports
+        _plant(env.ports / f"port{n}" / "__main__.py")
     call_tool("slop_status")
     lifts = [_plant(home / "lifts" / f"port{n}.pyz", 40_000, OLD + n) for n in range(10)]
     bridges = [_plant(home / "bridges" / f"port{n}.py", 40_000, OLD + 100 + n) for n in range(3)]
@@ -112,6 +116,8 @@ def test_home_cap_prunes_only_harness_files_oldest_first(env, monkeypatch):
             "foreign.pyz", "00000001.json", "notes.txt", "lifts/port.pyz.bak", "lifts/readme.txt", "bridges/my-bridge.py",
             "bridges/notes.txt", "journal/notes.json", "runs/run-abc", "runs/other-abcd1234/x", "runs/run-abcd12345/x",
             "shadow/state-9.json", "setup/other.json", "lifts/.staging-x/x",
+            "lifts/user.pyz", "lifts/backup.pyz", "bridges/mine.py", "lifts/SHOUT.PYZ", "bridges/Shout.py",
+            "journal/\u0660\u0660\u0660\u0660\u0660\u0660\u0660\u0661.json", "journal/99999999.JSON",
         )
     ]
     foreign = sum(decoy.stat().st_size for decoy in decoys)

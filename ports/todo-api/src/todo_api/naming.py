@@ -36,8 +36,8 @@ NAME_LIMIT_BYTES = 255
 _RESERVED = frozenset('\\/:*?"<>|%.')
 _SEPARATOR = "."
 _TIMESTAMP = "%Y%m%dT%H%M%SZ"
-_HEAD = re.compile(r"(\d{10})\.(open|done)\.(\d{8}T\d{6}Z)\.(\d{4})-(\d{3})\.(.*)\.todo", re.DOTALL)
-_PART = re.compile(r"(\d{10})\.(\d{4})-(\d{3})\.(.*)\.part", re.DOTALL)
+_HEAD = re.compile(r"([0-9]{10})\.(open|done)\.([0-9]{8}T[0-9]{6}Z)\.([0-9]{4})-([0-9]{3})\.(.*)\.todo", re.DOTALL)
+_PART = re.compile(r"([0-9]{10})\.([0-9]{4})-([0-9]{3})\.(.*)\.part", re.DOTALL)
 _ESCAPE = re.compile(r"%[0-9A-F]{2}")
 
 

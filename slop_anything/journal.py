@@ -15,8 +15,10 @@ import shutil
 import time
 from pathlib import Path
 
+from slop_anything.catalog import PortCatalog
 from slop_anything.observability import get_logger
-from slop_anything.settings import state_dir
+from slop_anything.packaging import identifier
+from slop_anything.settings import ports_dir, state_dir
 from slop_anything.store import STATE_FILE
 
 JOURNAL_DIR = "journal"
@@ -30,11 +32,22 @@ HOME_MAX_BYTES = 50_000_000
 """The harness state folder budget, enforced over the files the harness itself writes there."""
 STALE_FOLDER_SECONDS = 600
 """Run and staging folders younger than this may belong to a call in flight and are never pruned."""
-SEGMENT = re.compile(r"\d{8}\.json")
-PRUNABLE_FILES = ((JOURNAL_DIR, SEGMENT), ("lifts", re.compile(r".+\.pyz")), ("bridges", re.compile(r"\w+\.py")))
+SEGMENT = re.compile(r"[0-9]{8}\.json")
 PRUNABLE_FOLDERS = (("runs", re.compile(r"(?:case|run|bench|profile|lift)-[a-z0-9_]{8}")),
                     ("lifts", re.compile(r"\.staging-[a-z0-9_]{8}")))
 _log = get_logger("journal")
+
+
+def _exact(names: set[str]) -> re.Pattern[str]:
+    """Matches exactly one of ``names``, or nothing when there are none."""
+    return re.compile("|".join(re.escape(name) for name in sorted(names)) or "(?!)")
+
+
+def prunable_files() -> tuple[tuple[str, re.Pattern[str]], ...]:
+    """Journal segments, plus the lift (``<port>.pyz``) and bridge (``<identifier>.py``) of each discovered port."""
+    ports = [port.name for port in PortCatalog(ports_dir()).discover()]
+    return ((JOURNAL_DIR, SEGMENT), ("lifts", _exact({f"{name}.pyz" for name in ports})),
+            ("bridges", _exact({f"{identifier(name)}.py" for name in ports})))
 
 
 def record(revision: int, entry: dict, document: str | None) -> None:
@@ -102,7 +115,7 @@ def prune_home() -> int:
             files, total = files + 1, total + path.stat().st_size
     candidates = []
     now = time.time()
-    for rules, want_folder in ((PRUNABLE_FILES, False), (PRUNABLE_FOLDERS, True)):
+    for rules, want_folder in ((prunable_files(), False), (PRUNABLE_FOLDERS, True)):
         for folder, pattern in rules:
             parent = home / folder
             if not parent.is_dir() or parent.is_symlink():

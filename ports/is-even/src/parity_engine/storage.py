@@ -17,10 +17,10 @@ MAX_DATA_BYTES = 50 * 1024 * 1024
 # Temp files older than this cannot belong to a live request (15 s per-call cap).
 STALE_TMP_SECONDS = 60
 
-_SNAPSHOT = re.compile(r"kb-\d{8,}\.json")
-_SNAPSHOT_TMP = re.compile(r"kb-\d{8,}\.json\.\d+\.tmp")
+_SNAPSHOT = re.compile(r"kb-[0-9]{8,}\.json")
+_SNAPSHOT_TMP = re.compile(r"kb-[0-9]{8,}\.json\.[0-9]+\.tmp")
 # Temp names written by EventLog.compact_if_needed and MarkdownMetrics.write.
-_DATA_TMP = re.compile(r"(?:events|audit)\.jsonl\.\d+\.tmp|METRICS\.md\.\d+\.tmp")
+_DATA_TMP = re.compile(r"(?:events|audit)\.jsonl\.[0-9]+\.tmp|METRICS\.md\.[0-9]+\.tmp")
 
 
 class SnapshotStore:

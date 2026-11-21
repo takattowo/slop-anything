@@ -195,6 +195,16 @@ def test_quota_prunes_only_engine_files(tmp_path):
             "snapshots/kb-00000001.json.bak",
             "snapshots/foreign.tmp",
             f"snapshots/events.jsonl.{pid}.tmp",
+            # Non-ASCII digits and other letter cases (none aliases a name written below).
+            "events.jsonl.\u0661\u0662.tmp",
+            f"METRICS.md.\u0661{pid}.tmp",
+            "snapshots/kb-\u0660\u0660\u0660\u0660\u0660\u0660\u0660\u0661.json",
+            "snapshots/kb-0000000\u0661.json.12.tmp",
+            f"EVENTS.JSONL.{pid + 5}.TMP",
+            f"Audit.jsonl.{pid + 9}.tmp",
+            f"metrics.md.{pid + 8}.tmp",
+            "snapshots/KB-00000099.JSON",
+            f"snapshots/Kb-00000098.json.{pid + 4}.tmp",
         )
     ]
     decoys += [_plant(tmp_path / name) for name in ("foreign.tmp", f"events.jsonl.{pid}.tmp", "kb-00000001.json")]

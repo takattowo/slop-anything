@@ -119,6 +119,21 @@ BULK_DESCRIPTION = "x" * 400
 WORST_PAYLOADS = [("\U0001F600" * 200, "\U0001F600" * 500), ("%" * 200, "%" * 500), ("." * 200, "\x01" * 500)]
 
 
+def test_records_directory_only_claims_ascii_record_names():
+    from todo_api.naming import HeadName, PartName, PercentEncodedNaming
+
+    naming = PercentEncodedNaming()
+    head = "0000000001.open.20260101T000000Z.0000-002.abc.todo"
+    part = "0000000001.0000-001.def.part"
+    assert isinstance(naming.parse(head), HeadName) and isinstance(naming.parse(part), PartName)
+    arabic = str.maketrans("0123456789", "".join(chr(0x0660 + d) for d in range(10)))
+    for name in (head, part):
+        id_digits, rest = name[:10], name[10:]
+        assert naming.parse(id_digits.translate(arabic) + rest) is None
+        assert naming.parse(name.translate(arabic)) is None
+    assert naming.parse(head.upper()) is None and naming.parse(part.replace(".part", ".PART")) is None
+
+
 def test_data_dir_stays_within_caps(tmp_path, monkeypatch):
     from todo_api import service as service_module
     from todo_api.consistency import ServiceUnavailable

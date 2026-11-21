@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+import stat
 from dataclasses import asdict, is_dataclass
 from itertools import islice
 from pathlib import Path
@@ -19,9 +20,9 @@ MAX_JOURNAL_FRAME_CHARS = 64 * 1024
 MAX_DATA_FILES = 9_000
 MAX_DATA_BYTES = 45 * 1024 * 1024
 MAX_SCAN_ENTRIES = 20_000
-JOURNAL_NAME = re.compile(r"slot-\d{2}\.json")
-CACHE_SLOT_NAME = re.compile(r"slot-\d")
-CACHE_LINE_NAME = re.compile(r"\d{4}\.line")
+JOURNAL_NAME = re.compile(r"slot-[0-9]{2}\.json")
+CACHE_SLOT_NAME = re.compile(r"slot-[0-9]")
+CACHE_LINE_NAME = re.compile(r"[0-9]{4}\.line")
 
 
 class RenderJournal:
@@ -80,9 +81,13 @@ class DataDirSteward:
     def _usage(self) -> tuple[int, int]:
         count = total = 0
         for path in islice(self.root.rglob("*"), MAX_SCAN_ENTRIES):
-            if path.is_file():
+            try:
+                info = path.stat()
+            except OSError:
+                continue
+            if stat.S_ISREG(info.st_mode):
                 count += 1
-                total += path.stat().st_size
+                total += info.st_size
         return count, total
 
     @staticmethod
@@ -90,25 +95,38 @@ class DataDirSteward:
         if not folder.is_dir():
             return []
         entries = islice(folder.iterdir(), MAX_SCAN_ENTRIES)
-        return [p for p in entries if pattern.fullmatch(p.name) and (p.is_dir() if want_dir else p.is_file())]
+        return [p for p in entries if pattern.fullmatch(p.name) and (not want_dir or p.is_dir())]
 
-    def _own_files(self) -> list[Path]:
-        """Journal slots and cached scanlines, matched by the exact names this module writes."""
-        own = self._matching(self.root / "journal", JOURNAL_NAME, want_dir=False)
+    def _own_files(self) -> list[tuple[float, str, int, Path]]:
+        """Journal slots and cached scanlines, matched by the exact names this module writes.
+
+        One stat per file: (mtime, path, size, path). A file another run removed mid-scan is skipped.
+        """
+        candidates = self._matching(self.root / "journal", JOURNAL_NAME, want_dir=False)
         for slot in self._matching(self.root / "scanline-cache", CACHE_SLOT_NAME, want_dir=True):
-            own.extend(self._matching(slot, CACHE_LINE_NAME, want_dir=False))
+            candidates.extend(self._matching(slot, CACHE_LINE_NAME, want_dir=False))
+        own = []
+        for path in candidates:
+            try:
+                info = path.stat()
+            except OSError:
+                continue
+            if stat.S_ISREG(info.st_mode):
+                own.append((info.st_mtime, str(path), info.st_size, path))
         return own
 
     def enforce(self) -> tuple[int, int]:
         count, total = self._usage()
         if count > MAX_DATA_FILES or total > MAX_DATA_BYTES:
-            own = sorted((p.stat().st_mtime, str(p), p.stat().st_size, p) for p in self._own_files())
-            for _, _, size, path in own:
+            for _, _, size, path in sorted(self._own_files()):
                 if count <= MAX_DATA_FILES and total <= MAX_DATA_BYTES:
                     break
                 total -= size
                 count -= 1
-                path.unlink()
+                try:
+                    path.unlink()
+                except OSError:
+                    pass
             self.logger.warning("data dir compacted to %d files", count)
         self.pacer.pause(0.3)
         self.logger.error(
