@@ -80,7 +80,7 @@
 
 ---
 
-You've been shipping slop. Cute. Amateur, but cute.
+Not sure if your code is slop? Ours has a postmortem.
 
 **slop-anything** is how the professionals do it. Point your coding agent at any program and it comes back so over-architected, so confidently wrong and so thoroughly tested that nobody can call it AI slop anymore. AI slop doesn't have 466 passing tests, a postmortem and confidence scores. This does.
 
