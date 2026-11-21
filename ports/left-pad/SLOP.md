@@ -22,11 +22,11 @@ Every design decision in `ports/left-pad` that affects the answer, latency, I/O 
 - The plan for a request (shard, jitter, every fault roll, the predictive pick and the confidence score) is drawn up front in a fixed order, so the same seed, input and data folder give the same output (`draw_plan`).
 
 ## Storage engine
-- The memo store is a generated Python module, `<data dir>/_layout_registry.py`, holding `GENERATION` and an `ENTRIES` dict literal written with `pprint` (keys and values are only str and int literals; no user input is ever executed). It is imported with importlib before every request and rewritten after it (`registry.py`).
-- Two read replicas, `_layout_registry_replica_1.py` and `_layout_registry_replica_2.py`, are each rewritten and imported again after the primary, with a 0.25 s pause per replica. A write needs all three for quorum.
-- Every request also imports both replicas before it starts and logs a WARNING for each one whose generation differs from the primary; no catch-up runs.
-- After each rewrite the module is imported again as read-after-write verification (`LayoutRegistryStore.commit`).
-- `importlib.invalidate_caches()` runs on every load, and bytecode caching is switched off, so each module is recompiled from source every time.
+- The memo store is a generated Python module, `<data dir>/_layout_registry.py`, holding `GENERATION` and an `ENTRIES` dict literal written with `pprint` (keys and values are only str and int literals; no user input is ever executed). It is never imported or executed: before every request it is read as text and its assignments are parsed with `ast.literal_eval`; a snapshot that is not a regular file (a link, a folder), is over 2 MiB, or holds any statement other than its docstring and literal assignments is refused with an ERROR line and rebuilt empty. It is rewritten after every request (`registry.py`).
+- Two read replicas, `_layout_registry_replica_1.py` and `_layout_registry_replica_2.py`, are each rewritten and loaded again after the primary, with a 0.25 s pause per replica. A write needs all three for quorum.
+- Every request also loads both replicas before it starts and logs a WARNING for each one whose generation differs from the primary; no catch-up runs.
+- After each rewrite the module is loaded again as read-after-write verification (`LayoutRegistryStore.commit`).
+- Every load is a hot-reload verification: the file is read and parsed twice, and the second parse is used, so each module is parsed from source twice per load.
 - A memo hit is verified, not trusted: it is still computed five times, so a hit saves no work (`ComposeStage`).
 - Bounds: 128 entries per module, oldest first out; results over 2,048 characters are not memoised.
 - Secondary storage: `layout_telemetry.zip` (counters and the last 100 timings) is read in full and rewritten as a new zip on every request. Only the next write consults it (`telemetry.py`).

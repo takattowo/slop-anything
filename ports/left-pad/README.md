@@ -78,7 +78,7 @@ except LayoutServiceError:
 CLI / left_pad()
    -> LayoutEngine            (settings, normalisation, limits, execution plan)
       -> DataDirJanitor       (compaction)
-      -> LayoutRegistryStore  (_layout_registry.py, imported with importlib)
+      -> LayoutRegistryStore  (_layout_registry.py, parsed with ast.literal_eval, never imported)
       -> LayoutPipeline
            MeasureStage -> ResolveStrategyStage -> ComposeStage -> RenderStage
            (rounding,      |                       |                (safe mode,

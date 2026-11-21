@@ -1,13 +1,12 @@
 """Layout registry: the engine's persistent memo store."""
 from __future__ import annotations
 
-import importlib
-import importlib.util
+import ast
 import os
 import pprint
-import sys
+import stat
 from pathlib import Path
-from types import ModuleType
+from types import SimpleNamespace
 
 from .config import pause
 from .logs import get_logger
@@ -25,6 +24,10 @@ MAX_MEMO_CHARS = 2048
 
 SCHEMA_VERSION = 3
 WRITE_ATTEMPTS = 5
+MAX_SNAPSHOT_BYTES = 2 * 1024 * 1024
+"""A snapshot larger than this is refused and rebuilt."""
+HOT_RELOAD_READS = 2
+"""Every load re-reads and re-parses the snapshot to verify it was not rewritten mid-read."""
 
 _TEMPLATE = '''"""Layout registry snapshot (schema {schema}). Generated; do not edit."""
 
@@ -48,33 +51,44 @@ def _is_entry(key: object, value: object) -> bool:
 class LayoutRegistryStore:
     """Durable memo store backed by a generated Python module.
 
-    The snapshot is plain Python, so lookups hit a native dict with zero
-    deserialisation cost.
+    The snapshot is plain Python source, but it is never imported: each load
+    parses its literal assignments with ``ast.literal_eval``.
     """
 
     def __init__(self, directory: Path, filename: str = REGISTRY_FILENAME) -> None:
         self.path = directory / filename
-        self.module_name = "leftpad_" + filename.strip("_").removesuffix(".py")
 
-    def load(self) -> ModuleType | None:
-        """Import the current snapshot from disk."""
-        if not self.path.exists():
-            return None
-        importlib.invalidate_caches()
-        spec = importlib.util.spec_from_file_location(self.module_name, self.path)
-        if spec is None or spec.loader is None:
-            return None
-        module = importlib.util.module_from_spec(spec)
-        previous = sys.dont_write_bytecode
-        sys.dont_write_bytecode = True
+    def _read(self) -> dict | None:
+        """The snapshot's literal assignments, or ``None`` if it is missing, not a regular file or not a snapshot."""
         try:
-            spec.loader.exec_module(module)
-        except Exception as exc:
-            log.error("layout registry snapshot could not be imported (%s); starting a new one", type(exc).__name__)
+            if not stat.S_ISREG(os.lstat(self.path).st_mode):
+                raise ValueError("not a regular file")
+            with open(self.path, "rb") as handle:
+                source = handle.read(MAX_SNAPSHOT_BYTES + 1)
+            if len(source) > MAX_SNAPSHOT_BYTES:
+                raise ValueError("snapshot too large")
+            values = {}
+            for node in ast.parse(source.decode("utf-8")).body:
+                if isinstance(node, ast.Expr) and isinstance(node.value, ast.Constant):
+                    continue  # docstring
+                if not (isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name)):
+                    raise ValueError("unexpected statement")
+                values[node.targets[0].id] = ast.literal_eval(node.value)
+            return values
+        except FileNotFoundError:
             return None
-        finally:
-            sys.dont_write_bytecode = previous
-        return module
+        except Exception as exc:
+            log.error("layout registry snapshot could not be loaded (%s); starting a new one", type(exc).__name__)
+            return None
+
+    def load(self) -> SimpleNamespace | None:
+        """Load the current snapshot from disk, with hot-reload verification."""
+        values = None
+        for _ in range(HOT_RELOAD_READS):
+            values = self._read()
+            if values is None:
+                return None
+        return SimpleNamespace(**values)
 
     def snapshot(self) -> tuple[int, dict]:
         """Return the stored generation and the valid entries."""
@@ -91,7 +105,7 @@ class LayoutRegistryStore:
         return generation, entries
 
     def commit(self, generation: int, entries: dict) -> bool:
-        """Rewrite the snapshot, then verify it by importing it again. Returns ``True`` once durable."""
+        """Rewrite the snapshot, then verify it by loading it again. Returns ``True`` once durable."""
         while len(entries) > MAX_ENTRIES:
             entries.pop(next(iter(entries)))
         source = _TEMPLATE.format(

@@ -22,7 +22,7 @@ STALE_AFTER_SECONDS = 60.0
 
 OWN_FILENAMES = frozenset((REGISTRY_FILENAME, *REPLICA_FILENAMES, ARCHIVE_NAME, JOURNAL_NAME))
 """Every file the engine writes, by exact name, at the top level of its data folder."""
-OWN_TEMPORARY = re.compile("(?:" + "|".join(re.escape(name) for name in sorted(OWN_FILENAMES)) + r")\.\d+\.tmp")
+OWN_TEMPORARY = re.compile("(?:" + "|".join(re.escape(name) for name in sorted(OWN_FILENAMES)) + r")\.[0-9]+\.tmp")
 """The engine's own temporary files: ``<own file>.<pid>.tmp``."""
 
 

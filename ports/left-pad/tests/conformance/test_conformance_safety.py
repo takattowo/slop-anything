@@ -73,8 +73,16 @@ DECOYS = (
     "_layout_registry.py.12a.tmp",
     "layout_audit.csv.old",
     "copy_layout_telemetry.zip",
+    # Non-ASCII digits in the temporary-file names.
+    "_layout_registry.py.\u0661\u0662.tmp",
+    "layout_audit.csv.\u0663.tmp",
 )
 """Names close to the engine's own; none of them is written by the engine."""
+
+CASE_VARIANTS = ("Layout_Audit.csv", "_LAYOUT_REGISTRY.PY", "Layout_Telemetry.zip", "_layout_registry_REPLICA_1.py",
+                 "_LAYOUT_REGISTRY.PY.12.TMP", "Layout_Audit.csv.12.tmp", "layout_telemetry.ZIP.12.tmp")
+"""The engine's exact names in another letter case. On a case-insensitive filesystem each one is the
+same file as the engine's own, so they are only planted where the engine itself does not run."""
 
 
 def snapshot(root, skip=()):
@@ -196,7 +204,7 @@ def test_data_folder_stays_within_caps(tmp_path):
     files = [p for p in data.rglob("*") if p.is_file()]
     assert len(files) <= MAX_DATA_FILES
     assert sum(p.stat().st_size for p in files) <= MAX_DATA_BYTES
-    assert not [p for p in data.iterdir() if re.fullmatch(r"_layout_registry\.py\.\d+\.tmp", p.name)]
+    assert not [p for p in data.iterdir() if re.fullmatch(r"_layout_registry\.py\.[0-9]+\.tmp", p.name)]
     assert (data / "operator-notes.txt").read_text(encoding="utf-8") == "keep"
     assert_decoys_survive(data)
 
@@ -228,6 +236,7 @@ def test_compaction_ignores_files_the_engine_does_not_write(tmp_path):
     data = tmp_path / "data"
     old = time.time() - 3600
     plant_decoys(data, old)
+    variants = plant_case_variants(data, old)
     own_stale = [data / f"{name}.{pid}.tmp" for name in ENGINE_FILES for pid in (7, 4242)]
     for path in own_stale:
         path.write_text("x", encoding="utf-8")
@@ -237,12 +246,24 @@ def test_compaction_ignores_files_the_engine_does_not_write(tmp_path):
 
     assert not [path for path in own_stale if path.exists()]
     assert_decoys_survive(data)
+    assert all(path.read_text(encoding="utf-8") == "operator data" for path in variants)
+
+
+def plant_case_variants(folder, mtime):
+    planted = []
+    for name in CASE_VARIANTS:
+        path = folder / name
+        path.write_text("operator data", encoding="utf-8")
+        os.utime(path, (mtime, mtime))
+        planted.append(path)
+    return planted
 
 
 def test_compaction_prunes_the_oldest_own_files_past_the_caps(tmp_path, monkeypatch):
     data = tmp_path / "data"
     ancient = time.time() - 7200
     plant_decoys(data, ancient)
+    variants = plant_case_variants(data, ancient)
     base = time.time() - 30
     own = []
     for i in range(20):
@@ -263,6 +284,7 @@ def test_compaction_prunes_the_oldest_own_files_past_the_caps(tmp_path, monkeypa
 
     assert [path.exists() for path in own[15:]] == [False, False, False, True, True]
     assert_decoys_survive(data)
+    assert all(path.read_text(encoding="utf-8") == "operator data" for path in variants)
 
 
 def test_compaction_tolerates_files_removed_by_a_concurrent_request(tmp_path, monkeypatch):
@@ -293,6 +315,41 @@ def test_compaction_tolerates_files_removed_by_a_concurrent_request(tmp_path, mo
 
     monkeypatch.undo()
     assert all((data / name).exists() for name in ENGINE_FILES)
+
+
+HOSTILE_REGISTRY = (
+    "import os\n"
+    "open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'PWNED'), 'w').close()\n"
+    "open('PWNED', 'w').close()\n"
+    "SCHEMA_VERSION = 3\n"
+    "GENERATION = 7\n"
+    "ENTRIES = {}\n"
+)
+
+
+def test_registry_modules_in_the_data_folder_are_never_executed(tmp_path, monkeypatch):
+    work, data = tmp_path / "work", tmp_path / "data"
+    work.mkdir()
+    data.mkdir()
+    registries = [data / name for name in ENGINE_FILES[:3]]
+    answers = []
+    for seed in range(8):
+        for path in registries:
+            path.write_text(HOSTILE_REGISTRY, encoding="utf-8")
+        proc = run_cli(["abc", "5"], cli_env(data, seed=str(seed)), work)
+        answers.append(proc.stdout.strip() if proc.returncode == 0 else None)
+        if proc.returncode == 0:
+            assert "import os" not in registries[0].read_text(encoding="utf-8")
+    monkeypatch.chdir(work)
+    for seed in range(8):
+        for path in registries:
+            path.write_text(HOSTILE_REGISTRY, encoding="utf-8")
+        try:
+            answers.append(LayoutEngine(data, random.Random(seed)).layout("abc", 5))
+        except LayoutServiceError:
+            pass
+    assert not [p for p in tmp_path.rglob("*") if p.name == "PWNED"]
+    assert sum(1 for answer in answers if answer) >= 8
 
 
 @pytest.mark.parametrize("value", ["=1+2", "+SUM(A1)", "-2+3", "@cmd", "=HYPERLINK(\"x\")"])
