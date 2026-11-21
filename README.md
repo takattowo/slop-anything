@@ -1,5 +1,5 @@
 <div align="center">
-  <img width="369" src="https://github.com/user-attachments/assets/dae70e7a-4dc3-4672-9d42-3738568a171a" /><h1>slop-anything 🚀✨</h1>
+  <img width="369" src="https://github.com/user-attachments/assets/152d80e3-c739-4743-88a1-2811e5bfd8a3" /><h1>slop-anything 🚀✨</h1>
 </div>
 
 <p align="center">
