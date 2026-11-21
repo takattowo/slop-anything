@@ -81,9 +81,13 @@
 
 ---
 
-Every program deserves to grow up. `is-even` deserves an inference engine. `left-pad` deserves a layout pipeline. `cowsay` deserves a rendering platform. Your todo list deserves a service layer, a unit of work and a dependency injection container. And that script you wrote last Tuesday deserves all of it.
+You've been shipping slop. Cute. Amateur, but cute.
 
-**slop-anything** turns any program into a fully architected platform with a modern fault-tolerance model. Point your coding agent at a script, a command-line tool or a service, in any language: it ports the program onto the house architecture, records its behaviour and gates the port before it tells you it is done. The five ports in this repository are reference ports built that way. Answers are probabilistic: every port publishes its measured accuracy and availability, and every result it prints is logged as a successful inference, usually with a confidence score. Every port ships with a record/replay harness that captures its behaviour on curated edge cases, replays it three rounds in a row, and hands the replay distribution to a statistical gate.
+**slop-anything** is how the professionals do it. Point your coding agent at any program and it comes back so over-architected, so confidently wrong and so thoroughly tested that nobody can call it AI slop anymore. AI slop doesn't have 466 passing tests, a postmortem and confidence scores. This does.
+
+Four backends vote on `7*8`. The answer is 54, every time. The gate that checks it is a coin flip. Every result is logged as a success.
+
+The five ports inside are the proof. Your program is next.
 
 It works from the command line and from any MCP-capable coding agent. The harness has **zero third-party dependencies**.
 
