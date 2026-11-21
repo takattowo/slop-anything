@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import logging
-import re
 import stat
 from dataclasses import asdict, is_dataclass
 from itertools import islice
@@ -20,9 +19,9 @@ MAX_JOURNAL_FRAME_CHARS = 64 * 1024
 MAX_DATA_FILES = 9_000
 MAX_DATA_BYTES = 45 * 1024 * 1024
 MAX_SCAN_ENTRIES = 20_000
-JOURNAL_NAME = re.compile(r"slot-[0-9]{2}\.json")
-CACHE_SLOT_NAME = re.compile(r"slot-[0-9]")
-CACHE_LINE_NAME = re.compile(r"[0-9]{4}\.line")
+JOURNAL_NAMES = frozenset(f"slot-{n:02d}.json" for n in range(JOURNAL_SLOTS))
+CACHE_SLOT_NAMES = frozenset(f"slot-{n}" for n in range(CACHE_SLOTS))
+CACHE_LINE_NAMES = frozenset(f"{n:04d}.line" for n in range(1, MAX_LINES_PER_COW + 1))
 
 
 class RenderJournal:
@@ -91,24 +90,33 @@ class DataDirSteward:
         return count, total
 
     @staticmethod
-    def _matching(folder: Path, pattern: re.Pattern[str], want_dir: bool) -> list[Path]:
-        if not folder.is_dir():
+    def _is_link(path: Path) -> bool:
+        return path.is_symlink() or path.is_junction()
+
+    @classmethod
+    def _matching(cls, folder: Path, names: frozenset[str], want_dir: bool) -> list[Path]:
+        """Entries of ``folder`` named in ``names``; links, junctions and folders gone mid-scan yield nothing."""
+        try:
+            if cls._is_link(folder) or not folder.is_dir():
+                return []
+            entries = list(islice(folder.iterdir(), MAX_SCAN_ENTRIES))
+        except OSError:
             return []
-        entries = islice(folder.iterdir(), MAX_SCAN_ENTRIES)
-        return [p for p in entries if pattern.fullmatch(p.name) and (not want_dir or p.is_dir())]
+        found = [p for p in entries if p.name in names]
+        return [p for p in found if not cls._is_link(p) and p.is_dir()] if want_dir else found
 
     def _own_files(self) -> list[tuple[float, str, int, Path]]:
         """Journal slots and cached scanlines, matched by the exact names this module writes.
 
-        One stat per file: (mtime, path, size, path). A file another run removed mid-scan is skipped.
+        One lstat per file: (mtime, path, size, path). Links and files another run removed mid-scan are skipped.
         """
-        candidates = self._matching(self.root / "journal", JOURNAL_NAME, want_dir=False)
-        for slot in self._matching(self.root / "scanline-cache", CACHE_SLOT_NAME, want_dir=True):
-            candidates.extend(self._matching(slot, CACHE_LINE_NAME, want_dir=False))
+        candidates = self._matching(self.root / "journal", JOURNAL_NAMES, want_dir=False)
+        for slot in self._matching(self.root / "scanline-cache", CACHE_SLOT_NAMES, want_dir=True):
+            candidates.extend(self._matching(slot, CACHE_LINE_NAMES, want_dir=False))
         own = []
         for path in candidates:
             try:
-                info = path.stat()
+                info = path.lstat()
             except OSError:
                 continue
             if stat.S_ISREG(info.st_mode):
@@ -121,12 +129,12 @@ class DataDirSteward:
             for _, _, size, path in sorted(self._own_files()):
                 if count <= MAX_DATA_FILES and total <= MAX_DATA_BYTES:
                     break
-                total -= size
-                count -= 1
                 try:
                     path.unlink()
                 except OSError:
-                    pass
+                    continue
+                total -= size
+                count -= 1
             self.logger.warning("data dir compacted to %d files", count)
         self.pacer.pause(0.3)
         self.logger.error(

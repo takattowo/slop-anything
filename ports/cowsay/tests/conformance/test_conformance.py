@@ -14,6 +14,7 @@ sys.path.insert(0, str(PORT_ROOT / "src"))
 
 from ruminant import storage  # noqa: E402
 from ruminant.cli import main  # noqa: E402
+from ruminant.registry import MAX_LINES_PER_COW  # noqa: E402
 from ruminant.storage import CACHE_SLOTS, JOURNAL_SLOTS  # noqa: E402
 from ruminant.telemetry import get_logger, reset_log_budget  # noqa: E402
 
@@ -34,9 +35,10 @@ HELLO = (
 )
 BALLOON_TOP = re.compile(r"^ _*$")
 BALLOON_BOTTOM = re.compile(r"^ -*$")
-JOURNAL_NAME = re.compile(r"slot-[0-9]{2}\.json")
-CACHE_SLOT_NAME = re.compile(r"slot-[0-9]")
-CACHE_LINE_NAME = re.compile(r"[0-9]{4}\.line")
+# Every name the port writes, exactly.
+JOURNAL_NAMES = frozenset(f"slot-{n:02d}.json" for n in range(JOURNAL_SLOTS))
+CACHE_SLOT_NAMES = frozenset(f"slot-{n}" for n in range(CACHE_SLOTS))
+CACHE_LINE_NAMES = frozenset(f"{n:04d}.line" for n in range(1, MAX_LINES_PER_COW + 1))
 OLD_MTIME = 946_684_800  # 2000-01-01, older than anything the port writes
 # Files the port did not create, named close to its own, inside and next to its folders.
 DECOYS = (
@@ -66,6 +68,12 @@ DECOYS = (
     "journal/Slot-98.json",
     "scanline-cache/SLOT-9/0001.line",
     "scanline-cache/slot-0/9999.LINE",
+    # The right shape, but outside the slot and line ranges the port writes.
+    "journal/slot-64.json",
+    "journal/slot-65.json",
+    "scanline-cache/slot-8/0001.line",
+    "scanline-cache/slot-0/0000.line",
+    f"scanline-cache/slot-0/{MAX_LINES_PER_COW + 1:04d}.line",
     "index/user.txt",
     "metrics/user.txt",
 )
@@ -139,16 +147,16 @@ def assert_decoys_intact(data, names=DECOYS, size=0):
 
 def own_journal(data):
     folder = data / "journal"
-    return [p for p in folder.iterdir() if p.is_file() and JOURNAL_NAME.fullmatch(p.name)] if folder.is_dir() else []
+    return [p for p in folder.iterdir() if p.is_file() and p.name in JOURNAL_NAMES] if folder.is_dir() else []
 
 
 def own_cache_slots(data):
     folder = data / "scanline-cache"
-    return [p for p in folder.iterdir() if p.is_dir() and CACHE_SLOT_NAME.fullmatch(p.name)] if folder.is_dir() else []
+    return [p for p in folder.iterdir() if p.is_dir() and p.name in CACHE_SLOT_NAMES] if folder.is_dir() else []
 
 
 def own_cache_lines(data):
-    return [p for s in own_cache_slots(data) for p in s.iterdir() if p.is_file() and CACHE_LINE_NAME.fullmatch(p.name)]
+    return [p for s in own_cache_slots(data) for p in s.iterdir() if p.is_file() and p.name in CACHE_LINE_NAMES]
 
 
 def test_writes_nothing_outside_the_data_dir(tmp_path):
@@ -256,12 +264,17 @@ def test_quota_tolerates_files_removed_by_another_run(tmp_path, monkeypatch):
         path.write_text("x", encoding="utf-8")
         os.utime(path, (OLD_MTIME + slot, OLD_MTIME + slot))
     gone_before_stat, gone_before_unlink = "slot-03.json", "slot-00.json"
-    real_stat, real_is_file, real_unlink = Path.stat, Path.is_file, Path.unlink
+    real_stat, real_lstat, real_is_file, real_unlink = Path.stat, Path.lstat, Path.is_file, Path.unlink
 
     def stat(self, *args, **kwargs):
         if self.name == gone_before_stat:
             raise FileNotFoundError(self)
         return real_stat(self, *args, **kwargs)
+
+    def lstat(self):
+        if self.name == gone_before_stat:
+            raise FileNotFoundError(self)
+        return real_lstat(self)
 
     def is_file(self, *args, **kwargs):
         return True if self.name == gone_before_stat else real_is_file(self, *args, **kwargs)
@@ -273,11 +286,83 @@ def test_quota_tolerates_files_removed_by_another_run(tmp_path, monkeypatch):
 
     monkeypatch.setattr(storage, "MAX_DATA_FILES", 1)
     monkeypatch.setattr(Path, "stat", stat)
+    monkeypatch.setattr(Path, "lstat", lstat)
     monkeypatch.setattr(Path, "is_file", is_file)
     monkeypatch.setattr(Path, "unlink", unlink)
     storage.DataDirSteward(data, storage.Pacer(0), get_logger("ruminant.conformance")).enforce()
     monkeypatch.undo()
     assert (data / "journal" / gone_before_stat).exists()
+
+
+def steward(data):
+    return storage.DataDirSteward(data, storage.Pacer(0), get_logger("ruminant.conformance"))
+
+
+def make_dir_link(link, target, kind):
+    """A symlink or a Windows junction at ``link`` pointing to ``target``; skips when the OS refuses."""
+    link.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        if kind == "junction":
+            import _winapi
+
+            _winapi.CreateJunction(str(target), str(link))
+        else:
+            os.symlink(target, link, target_is_directory=True)
+    except (ImportError, AttributeError, NotImplementedError, OSError) as exc:
+        pytest.skip(f"cannot create a {kind} here: {exc}")
+
+
+@pytest.mark.parametrize("kind", ["symlink", "junction"])
+@pytest.mark.parametrize("linked", ["journal", "scanline-cache", "scanline-cache/slot-0"])
+def test_quota_never_follows_links_out_of_the_data_dir(tmp_path, monkeypatch, kind, linked):
+    data, outside = tmp_path / "data", tmp_path / "outside"
+    names = ("slot-00.json", "slot-01.json", "slot-0/0001.line", "0001.line", "0002.line")
+    plant_decoys(outside, names)
+    plant_decoys(data, ("notes.txt",))  # puts the data dir over its quota of 0 files
+    make_dir_link(data / linked, outside, kind)
+    monkeypatch.setattr(storage, "MAX_DATA_FILES", 0)
+    steward(data).enforce()
+    assert_decoys_intact(outside, names)
+
+
+def test_quota_tolerates_a_slot_removed_before_it_is_listed(tmp_path, monkeypatch):
+    data = tmp_path / "data"
+    plant_decoys(data, ("journal/slot-00.json", "scanline-cache/slot-0/0001.line", "scanline-cache/slot-1/0001.line"))
+    real_iterdir = Path.iterdir
+
+    def iterdir(self):
+        if self.name == "slot-0":
+            raise FileNotFoundError(self)
+        return real_iterdir(self)
+
+    monkeypatch.setattr(storage, "MAX_DATA_FILES", 0)
+    monkeypatch.setattr(Path, "iterdir", iterdir)
+    steward(data).enforce()
+    monkeypatch.undo()
+    assert not (data / "journal" / "slot-00.json").exists()
+    assert not (data / "scanline-cache" / "slot-1" / "0001.line").exists()
+
+
+def test_quota_moves_past_a_file_it_cannot_delete(tmp_path, monkeypatch):
+    data = tmp_path / "data"
+    for slot in range(3):
+        path = data / "journal" / f"slot-{slot:02d}.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("x", encoding="utf-8")
+        os.utime(path, (OLD_MTIME + slot, OLD_MTIME + slot))
+    real_unlink = Path.unlink
+
+    def unlink(self, *args, **kwargs):
+        if self.name == "slot-00.json":
+            raise PermissionError(self)
+        return real_unlink(self, *args, **kwargs)
+
+    monkeypatch.setattr(storage, "MAX_DATA_FILES", 2)
+    monkeypatch.setattr(Path, "unlink", unlink)
+    steward(data).enforce()
+    monkeypatch.undo()
+    journal = data / "journal"
+    assert [(journal / f"slot-{n:02d}.json").exists() for n in range(3)] == [True, False, True]
 
 
 def test_stderr_log_budget_counts_lines(capsys):
