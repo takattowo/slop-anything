@@ -134,6 +134,24 @@ def test_records_directory_only_claims_ascii_record_names():
     assert naming.parse(head.upper()) is None and naming.parse(part.replace(".part", ".PART")) is None
 
 
+@pytest.mark.parametrize("name, field", [
+    ("0000000001.open.20260101T000000Z.0000-002.abc.todo", "20260101"),  # timestamp, date
+    ("0000000001.open.20260101T000000Z.0000-002.abc.todo", "T000000Z"),  # timestamp, time
+    ("0000000001.open.20260101T000000Z.0000-002.abc.todo", ".0000-"),  # shard
+    ("0000000001.open.20260101T000000Z.0000-002.abc.todo", "-002."),  # part count
+    ("0000000001.0000-001.def.part", ".0000-"),  # shard
+    ("0000000001.0000-001.def.part", "-001."),  # part number
+])
+def test_each_numeric_field_only_accepts_ascii_digits(name, field):
+    from todo_api.naming import PercentEncodedNaming
+
+    naming = PercentEncodedNaming()
+    assert naming.parse(name) is not None
+    start = name.index(field) + next(i for i, c in enumerate(field) if c.isdigit())
+    one_arabic = name[:start] + chr(0x0660 + int(name[start])) + name[start + 1:]
+    assert naming.parse(one_arabic) is None
+
+
 def test_data_dir_stays_within_caps(tmp_path, monkeypatch):
     from todo_api import service as service_module
     from todo_api.consistency import ServiceUnavailable
