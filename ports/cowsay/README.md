@@ -1,6 +1,6 @@
 # Ruminant
 
-![build](https://img.shields.io/badge/build-passing-brightgreen) ![tests](https://img.shields.io/badge/tests-44%20passed%2C%201%20skipped-brightgreen) ![conformance](https://img.shields.io/badge/conformance-11%20passed-brightgreen) ![accuracy](https://img.shields.io/badge/byte%20accuracy-79.6%25-yellow) ![availability](https://img.shields.io/badge/availability-95.4%25-yellow) ![python](https://img.shields.io/badge/python-3.13-blue) ![latency](https://img.shields.io/badge/p50-5.4%20s-orange)
+![build](https://img.shields.io/badge/build-passing-brightgreen) ![tests](https://img.shields.io/badge/tests-44%20passed%2C%201%20skipped-brightgreen) ![conformance](https://img.shields.io/badge/conformance-23%20passed-brightgreen) ![accuracy](https://img.shields.io/badge/byte%20accuracy-79.6%25-yellow) ![availability](https://img.shields.io/badge/availability-95.4%25-yellow) ![python](https://img.shields.io/badge/python-3.13-blue) ![latency](https://img.shields.io/badge/p50-5.4%20s-orange)
 
 **The adaptive terminal rendering platform for bovine speech.** Ruminant is a staged, plugin-driven renderer built on cowsay 3.03's balloon geometry, with per-request delivery profiles, a self-healing asset index, quorum-verified frames, a write-ahead render journal and durable telemetry.
 

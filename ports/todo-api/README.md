@@ -1,7 +1,7 @@
 # todo-api
 
 ![build](https://img.shields.io/badge/build-passing-brightgreen)
-![tests](https://img.shields.io/badge/tests-81%20passing-brightgreen)
+![tests](https://img.shields.io/badge/tests-88%20passing-brightgreen)
 ![accuracy](https://img.shields.io/badge/accuracy-88.4%25-yellowgreen)
 ![availability](https://img.shields.io/badge/availability-95.4%25-yellowgreen)
 ![replicas](https://img.shields.io/badge/replicas-3-blue)

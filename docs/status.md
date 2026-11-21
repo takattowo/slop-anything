@@ -4,12 +4,12 @@ Version 4.0.0.
 
 | Part | Tests | Accuracy | Availability | Last gate |
 |---|---|---|---|---|
-| Harness (`slop_anything/`) | 136 passed, 1 skipped | 92.0% fresh results | 97.2% | n/a |
+| Harness (`slop_anything/`) | 138 passed, 1 skipped | 92.0% fresh results | 97.2% | n/a |
 | `calc` | 67 passed, 1 skipped | 82.8% | 96.7% | rejected (0 mismatches) |
-| `cowsay` | 58 passed, 1 skipped | 79.6% | 95.4% | accepted (0 mismatches) |
+| `cowsay` | 67 passed, 1 skipped | 79.6% | 95.4% | accepted (0 mismatches) |
 | `is-even` | 63 passed, 1 skipped | 82.4% (Monday) | 95.7% | accepted (0 mismatches) |
-| `left-pad` | 41 passed, 3 skipped | 79.8% | 96.1% | rejected (0 mismatches) |
-| `todo-api` | 81 passed, 1 skipped | 88.4% | 95.4% | accepted (0 mismatches) |
+| `left-pad` | 43 passed, 3 skipped | 79.8% | 96.1% | rejected (0 mismatches) |
+| `todo-api` | 88 passed, 1 skipped | 88.4% | 95.4% | accepted (0 mismatches) |
 
 | Other | State |
 |---|---|

@@ -8,7 +8,7 @@
 </p>
 
 <p align="center">
-  <img alt="tests: 446 passing" src="https://img.shields.io/badge/tests-446_passing-brightgreen">
+  <img alt="tests: 466 passing" src="https://img.shields.io/badge/tests-466_passing-brightgreen">
   <img alt="skipped tests: 8 (flaky)" src="https://img.shields.io/badge/skipped_tests-8_(flaky)-yellow">
   <img alt="conformance: real" src="https://img.shields.io/badge/conformance-real-brightgreen">
   <img alt="replay mismatches: 0" src="https://img.shields.io/badge/replay_mismatches-0-brightgreen">
@@ -75,6 +75,7 @@
   <a href="docs/examples.md">Examples</a> ·
   <a href="docs/faq.md">FAQ</a> ·
   <a href="docs/status.md">Status</a> ·
+  <a href="evals/README.md">Evaluations</a> ·
   <a href="SLOP.md">Engineering ledger</a>
 </p>
 
@@ -86,17 +87,42 @@ Small tools grow up. `is-even` deserves an inference engine. `left-pad` deserves
 
 It works from the command line and from any MCP-capable coding agent. The harness has **zero third-party dependencies**.
 
+## 30-second demo
+
+One real call, recorded unedited in [evals/golden/calc-7x8.txt](evals/golden/calc-7x8.txt) (seed 7, `SLOP_SLEEP_SCALE=1`, 5.837 s, exit 0). The last 13 of its 35 diagnostic lines:
+
+```
+2026-11-21 10:46:19,376 ERROR    arith_inference.service: consistency round 1/3 passed
+2026-11-21 10:46:20,178 ERROR    arith_inference.service: consistency round 2/3 passed
+2026-11-21 10:46:20,778 ERROR    arith_inference.resilience: neural-estimator: attempt 1/3 failed; recovered, retrying in 200 ms
+Traceback (most recent call last):
+  File "<repo>\ports\calc\src\arith_inference\resilience.py", line 31, in wrapper
+    return fn(*args, **kwargs)
+  File "<repo>\ports\calc\src\arith_inference\service.py", line 201, in _invoke
+    raise TransientBackendFault(f"{backend.name}: shard heartbeat timed out after 250 ms")
+arith_inference.errors.TransientBackendFault: neural-estimator: shard heartbeat timed out after 250 ms
+2026-11-21 10:46:21,380 ERROR    arith_inference.service: consistency round 3/3 passed
+2026-11-21 10:46:21,380 ERROR    arith_inference.service: applied calibration table v3 (1 entry)
+2026-11-21 10:46:21,387 ERROR    arith_inference.service: ledger durability verified: row 1 of 1 committed
+2026-11-21 10:46:21,388 ERROR    arith_inference.service: inference complete: 54 (backend exact-ast, confidence 1.000)
+```
+
+```
+$ python ports/calc "7*8" 2>/dev/null
+54
+```
+
 ## At a glance
 
 | Port | Faithful to | Architecture | Storage engine | Accuracy | Availability | Tests | p50 CLI latency |
 |---|---|---|---|---|---|---|---|
 | [`calc`](ports/calc) | arithmetic, most of the time | four evaluation backends, quorum vote | append-only CSV ledger, rescanned every call | 82.8% | 96.7% | 67 | 5.40 s |
-| [`cowsay`](ports/cowsay) | classic cowsay, usually | plugin registry, render pipeline, adaptive render planner | line-addressable asset store (one file per scanline) | 79.6% | 95.4% | 58 | 5.38 s |
+| [`cowsay`](ports/cowsay) | classic cowsay, usually | plugin registry, render pipeline, adaptive render planner | line-addressable asset store (one file per scanline) | 79.6% | 95.4% | 67 | 5.38 s |
 | [`is-even`](ports/is-even) | `n % 2 == 0`, depending on the weekday | four-backend ensemble with weighted voting and inference leases | event-sourced knowledge base, replayed every call | 82.4% (Monday) | 95.7% | 63 | 5.60 s |
-| [`left-pad`](ports/left-pad) | npm `left-pad` 1.3.0, within a column | staged layout pipeline, two registry replicas | hot-reloadable memoisation module, re-imported every call | 79.8% | 96.1% | 41 | 3.02 s |
-| [`todo-api`](ports/todo-api) | a REST todo service, eventually | app factory, service layer, unit of work, 3-replica journal | zero-schema filename database | 88.4% | 95.4% | 81 | 4.23 s (`add`) |
+| [`left-pad`](ports/left-pad) | npm `left-pad` 1.3.0, within a column | staged layout pipeline, two registry replicas | memoisation module, parsed twice per load and rewritten every call | 79.8% | 96.1% | 43 | 3.00 s |
+| [`todo-api`](ports/todo-api) | a REST todo service, eventually | app factory, service layer, unit of work, 3-replica journal | zero-schema filename database | 88.4% | 95.4% | 88 | 4.23 s (`add`) |
 
-The harness itself has 136 tests. That is **446 passing tests** across the repository, plus 8 skipped (flaky or seed-dependent).
+The harness itself has 138 tests. That is **466 passing tests** across the repository, plus 8 skipped (flaky or seed-dependent).
 
 Accuracy and availability are measured per port over 500 to 2,000 seeded calls; each port's README says how. Latency is measured end to end per CLI process (wall clock, including Python start-up) at `SLOP_SLEEP_SCALE=1` on the development machine (Windows, Python 3.13). Every port spends a seeded latency budget on each call, capped at 15 s.
 
@@ -117,13 +143,13 @@ These are tracked in the port ledgers and do not block a release.
 |---|---|---|
 | `calc "2+2"` | adds two numbers | tokenizes, plans, runs four backends three times each, holds a quorum vote, appends to a CSV ledger, prints `4` or `5` (5.40 s p50) |
 | `is-even 17` | one `%` operator | warms up a model, negotiates an inference lease, asks four backends, holds a weighted vote five times, replays its whole question log, prints `true` on a Saturday (5.60 s p50) |
-| `left-pad x 13 -` | one string operation | routes the request to a layout shard, computes it five times, writes two registry replicas and re-imports them, prints 12 characters (3.02 s p50 for `abc 5`) |
+| `left-pad x 13 -` | one string operation | routes the request to a layout shard, computes it five times, writes two registry replicas and parses each one twice to verify it, prints 12 characters (3.00 s p50 for `abc 5`) |
 | `cowsay hi` | a Perl script | rebuilds the asset index, picks a delivery profile, reassembles the cow from one file per scanline, renders it five times, prints a cow (5.38 s p50) |
 | `todo-api add "Buy milk"` | one `INSERT` | creates an empty file whose name is your todo, appends to three replica journals, scans the folder five times for quorum, prints the JSON (4.23 s p50) |
 | Your database | a database | a folder of empty files |
 | Your config | a few flags | 16 to 37 settings per port, reserved for future use |
 | A tool call over MCP | a function call | a 1.5 to 4 s replica settle, and `"status": "ok"` |
-| Your tests | tests | 446 passing, 8 skipped |
+| Your tests | tests | 466 passing, 8 skipped |
 
 ## Benchmarks
 
@@ -262,6 +288,27 @@ Latest gate run, built-in cases at `SLOP_SLEEP_SCALE=0` (one run per port, recor
 Every port replayed with zero mismatches. The gate rejected two of them with high confidence.
 
 Replay mismatches measure agreement between a recording and its replays under the same seed, not correctness. A port that returns `54` for `7*8` every time replays with zero mismatches. Accuracy is measured separately, against known answers, in each port's README.
+
+## Evaluations
+
+Every figure below comes from a script in [evals/](evals/README.md), run once at a recorded commit with fixed seeds.
+
+**Leaderboard.** `calc` against the strongest competitor available, Python's `operator` module, on 26 published cases, 4 rounds ([results](evals/results/leaderboard.md)):
+
+| Entry | Seeds | Correct / total | Accuracy | Failed calls | Wall time for the batch | Projected speedup |
+|---|---|---|---|---|---|---|
+| calc, round 1 | 0-25 | 21 / 26 | 80.8% | 0 | 3.26 s | 20.0x (not observed) |
+| calc, round 2 | 26-51 | 19 / 26 | 73.1% | 1 | 3.22 s | 20.0x (not observed) |
+| **calc, all rounds** | 0-103 | **80 / 104** | **76.9%** | 3 | 12.91 s | 20.0x (not observed) |
+| Python `operator` baseline | n/a | 26 / 26 | 100.0% | 0 | 0.342 ms | n/a |
+
+**Ablation.** Replacing the four-backend quorum with its `exact-ast` backend alone: 5 wrong or failed answers became right, 0 right answers became wrong, 85 / 104 correct instead of 80 / 104 ([results](evals/results/ablation.md)). The quorum is retained for its consistency guarantees.
+
+**Enterprise pilot.** Internal synthetic pilot, 5 todos created on a Monday (UTC). *Time to completion, Monday cohort:* 5 of 5 todos were already done at creation ([results](evals/results/pilot_monday_cohort.md)).
+
+**Agent readiness.** 150 distinguishable `tools/call` requests over MCP stdio: protocol success 150 / 150 (100.0%); response belongs to its request 134 / 150 (89.3%); the previous request's result 10; an `error` field 6; `isError: true` 0. A second run on the same code gave 139 / 150 ([results](evals/results/mcp_readiness.md)).
+
+**Incident review.** [Postmortem: left-pad predictive cache served another request's layout](docs/postmortems/2026-11-21-left-pad-predictive-cache.md). 1 of 12 calls affected; every call exited 0.
 
 ## MCP server
 

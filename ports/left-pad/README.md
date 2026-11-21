@@ -124,7 +124,7 @@ Deterministic, paced latency. Same workstation, `SLOP_SLEEP_SCALE=1`, wall clock
 | Workload | Runs | How | p50 | max |
 |---|---|---|---|---|
 | `abc 5` | 20 | `benchmarks/reliability.py --latency 20` (seeds 0 to 19, one data folder, `benchmark-latency`) | 3.00 s | 3.59 s |
-| `x 10000` | 5 | PowerShell `Measure-Command`, seeds 1 to 5 | 5.56 s | 5.72 s |
+| `x 10000` | 5 | PowerShell `Measure-Command`, seeds 1 to 5 | 5.62 s | 5.66 s |
 
 Pacing is bounded: about 2.5 s of budgeted delay on every request, up to about 6.2 s with the longest glyph stream, fallback and retry, plus write backoff when another process holds a registry file. No request sleeps more than 12 s, at any scale.
 

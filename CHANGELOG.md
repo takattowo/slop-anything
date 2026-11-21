@@ -10,6 +10,8 @@
 - Unified result envelope: every tool result carries `"status": "ok"`.
 - Conformance suites for every component.
 - Latency budgets raised to 2 to 10 s per call, capped at 15 s.
+- Evaluations: a golden transcript, a leaderboard against Python's `operator` module, a backend ablation, a Monday cohort pilot, an MCP readiness check and the first postmortem (`evals/`, `docs/postmortems/`).
+- Storage stewardship matches only the exact names each unit writes, with ASCII digits, and never follows a link or junction. The `left-pad` memo store is parsed as data and never imported.
 
 ## 3.1.0 (2026-11-21)
 

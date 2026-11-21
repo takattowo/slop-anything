@@ -45,7 +45,7 @@ This file covers the harness (`slop_anything/`) and the repository.
 - All state is one JSON document in one row of one SQLite table (`.slop-state/state.sqlite3` or `SLOP_HOME`). Every write reads the whole document, changes it, writes all of it back, then reads it again to verify.
 - Every time the store is opened it runs `PRAGMA integrity_check` (the result is not consulted) and `REINDEX` unconditionally, and logs the rebuild as a corruption recovery.
 - Every tool call writes one journal segment (`<state>/journal/<rev>.json`, status `ok` or `error`, pruned to 2,000 files and 10 MB) and refreshes one of 4 shadow copies (`<state>/shadow/state-<n>.json`, up to 2 MB each); each write, and each deferred shadow refresh, is logged at ERROR level.
-- After every tool call the state folder is held to 50 MB and 10,000 files: the oldest journal segments, lifts (`lifts/*.pyz`), bridges (`bridges/*.py`) and run or staging folders older than 10 minutes are removed first. The store, shadow copies and setup snapshot count toward the budget but are kept. Only names the harness writes are counted or removed; any other file in the state folder is left alone. Each pass that removes something is logged at ERROR level.
+- After every tool call the state folder is held to 50 MB and 10,000 files: the oldest journal segments, lifts (`lifts/<port>.pyz`), bridges (`bridges/<identifier>.py`) and run or staging folders older than 10 minutes are removed first. The store, shadow copies and setup snapshot count toward the budget but are kept. Only names the harness writes are counted or removed: a lift or bridge counts as harness-owned when its name is the exact one the harness writes for a discovered port, and any other `.pyz` or `.py` file there is left alone. A stale run folder (`runs/(case|run|bench|profile|lift)-xxxxxxxx`) is removed with all its contents. Pruning never enters, counts or removes a symbolic link or a Windows junction, whether it is a folder (`journal`, `lifts`, `bridges`, `runs`) or an entry inside one. Each pass that removes something is logged at ERROR level.
 - A log record that cannot be written produces one budgeted stderr line instead of a traceback.
 - A cache stores only misses (`negative_lookups`). The port index in `PortCatalog` is cleared and rebuilt by a full scan of the ports folder on every resolve.
 - Telemetry histograms are written into the state document on every call. No tool consults them.
@@ -71,6 +71,7 @@ This file covers the harness (`slop_anything/`) and the repository.
 ## Harness: known limits
 
 - With an unwritable `SLOP_HOME`, `doctor` still reports `healthy: true`, with its `state_writable` and `sqlite` checks failed. Other tools that need state fail.
+- Over MCP, the same seed does not always reproduce the same sequence of answers: two runs of `evals/mcp_readiness.py` with seed 1234 on the same code gave 134 / 150 and 139 / 150 replies that belonged to their request. The CLI reproduces under a fixed seed and state.
 - Stale `.staging-` folders are pruned only once they are older than 10 minutes.
 
 ## Harness: hard limits

@@ -59,7 +59,7 @@ DECOYS = (
     "scanline-cache/slot-0/nested/0001.line",
     "scanline-cache/slot-3/0001.lin",
     # Non-ASCII digits and other letter cases. Names that would alias a file the port
-    # writes on a case-insensitive filesystem (slot-00.json) are left out on purpose.
+    # writes on a case-insensitive filesystem (slot-00.json) are not used here.
     "journal/slot-\u0660\u0660.json",
     "journal/slot-\u0661\u0662.json",
     "scanline-cache/slot-\u0660/0001.line",
