@@ -46,6 +46,7 @@ Options: `leaderboard.py` and `ablation.py` take `--rounds N` (1 to 10, default 
 ## Notes
 
 - Seeds are fixed in each script, so a rerun on the same commit gives the same answers. Timings and timestamps differ between runs.
+- Exception: `mcp_readiness.py` is not reproducible run to run: its outcome does not depend on the seed alone. Two runs with seed 1234 on the same `ports/` and `slop_anything/` code gave 134 / 150 and 139 / 150 replies that belonged to their request (protocol success 150 / 150 both times). The committed results file is the first run.
 - `ablation.py` and `pilot_monday_cohort.py` import the port packages in-process. The ablation passes its backend list through the `ArithmeticInferenceService(backends=...)` constructor argument. The pilot patches `todo_api.service.utc_now` inside its own process, because the CLI has no supported way to pin the clock. No port file is changed.
 - Quoted diagnostics show machine-specific folders as `<repo>`, `<tmp>`, `<python>` and `~`. Nothing else in a captured output is changed.
 - The projected speedup in the leaderboard comes from `python -m slop_anything bench`. The harness ledger states it is not measured; it is reported as given and labelled "not observed".
