@@ -73,12 +73,17 @@ def record(revision: int, entry: dict, document: str | None) -> None:
     prune_home()
 
 
+def _is_link(path: Path) -> bool:
+    """A symbolic link or a Windows junction: never entered, counted or removed as harness data."""
+    return path.is_symlink() or path.is_junction()
+
+
 def prune() -> int:
     """Removes the oldest journal segments until the journal is within its limits. Returns how many went."""
     folder = state_dir() / JOURNAL_DIR
-    if not folder.is_dir():
+    if not folder.is_dir() or _is_link(folder):
         return 0
-    segments = sorted(p for p in folder.iterdir() if SEGMENT.fullmatch(p.name) and p.is_file() and not p.is_symlink())
+    segments = sorted(p for p in folder.iterdir() if SEGMENT.fullmatch(p.name) and p.is_file() and not _is_link(p))
     sizes = [segment.stat().st_size for segment in segments]
     total = sum(sizes)
     removed = 0
@@ -93,7 +98,7 @@ def prune() -> int:
 
 def _usage(path: Path) -> tuple[int, int]:
     """(files, bytes) under ``path``, without following links."""
-    if not path.is_dir() or path.is_symlink():
+    if not path.is_dir() or _is_link(path):
         return 1, path.lstat().st_size
     files = [Path(folder) / name for folder, _, names in os.walk(path) for name in names]
     return len(files), sum(file.lstat().st_size for file in files)
@@ -111,18 +116,18 @@ def prune_home() -> int:
             *(home / SHADOW_DIR / f"state-{slot}.json" for slot in range(SHADOW_SLOTS))]
     files = total = 0
     for path in kept:
-        if path.is_file() and not path.is_symlink():
+        if path.is_file() and not _is_link(path):
             files, total = files + 1, total + path.stat().st_size
     candidates = []
     now = time.time()
     for rules, want_folder in ((prunable_files(), False), (PRUNABLE_FOLDERS, True)):
         for folder, pattern in rules:
             parent = home / folder
-            if not parent.is_dir() or parent.is_symlink():
+            if not parent.is_dir() or _is_link(parent):
                 continue
             for child in parent.iterdir():
                 try:
-                    if not pattern.fullmatch(child.name) or child.is_symlink() or child.is_dir() != want_folder:
+                    if not pattern.fullmatch(child.name) or _is_link(child) or child.is_dir() != want_folder:
                         continue
                     mtime = child.stat().st_mtime
                     count, size = _usage(child)

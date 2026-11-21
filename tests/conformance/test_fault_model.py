@@ -3,9 +3,12 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 import time
+
+import pytest
 
 from conftest import child_environment
 from slop_anything import journal, kernel, tools
@@ -134,6 +137,41 @@ def test_home_cap_prunes_only_harness_files_oldest_first(env, monkeypatch):
     call_tool("slop_status")
     assert len(_files(home)) - len(decoys) <= journal.HOME_MAX_FILES
     assert all(decoy.exists() for decoy in decoys) and bridges[-1].exists()
+
+
+def _dir_link(link, target, kind):
+    """A symlink or a Windows junction at ``link`` pointing to ``target``; skips when the OS refuses."""
+    link.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        if kind == "junction":
+            import _winapi
+
+            _winapi.CreateJunction(str(target), str(link))
+        else:
+            os.symlink(target, link, target_is_directory=True)
+    except (ImportError, AttributeError, NotImplementedError, OSError) as exc:
+        pytest.skip(f"cannot create a {kind} here: {exc}")
+
+
+@pytest.mark.parametrize("kind", ["symlink", "junction"])
+def test_retention_never_follows_links_out_of_the_state_folder(env, tmp_path, monkeypatch, kind):
+    home, outside = env.state, tmp_path / "outside"
+    for n in range(2):  # the lift and bridge names below belong to these ports
+        _plant(env.ports / f"port{n}" / "__main__.py")
+    planted = [_plant(outside / name, 1_000) for name in (
+        "lifts/port0.pyz", "bridges/port0.py", "journal/00000001.json", "journal/00000002.json", "run/calls.log")]
+    os.utime(outside / "run", (OLD, OLD))
+    home.mkdir(parents=True, exist_ok=True)
+    for folder in ("lifts", "bridges", journal.JOURNAL_DIR):
+        shutil.rmtree(home / folder, ignore_errors=True)
+        _dir_link(home / folder, outside / folder, kind)
+    _dir_link(home / "runs" / "run-abcd1234", outside / "run", kind)
+    monkeypatch.setattr(journal, "MAX_JOURNAL_FILES", 0)
+    monkeypatch.setattr(journal, "HOME_MAX_FILES", 0)
+    monkeypatch.setattr(journal, "HOME_MAX_BYTES", 0)
+    journal.prune()
+    journal.prune_home()
+    assert all(path.is_file() and path.stat().st_size == 1_000 for path in planted)
 
 
 def test_record_sampling_really_drops_cases(env, monkeypatch):
