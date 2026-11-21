@@ -1,6 +1,6 @@
 # Leftpad Layout Engine
 
-![build](https://img.shields.io/badge/build-passing-brightgreen) ![tests](https://img.shields.io/badge/tests-41%20passed%2C%203%20skipped-brightgreen) ![accuracy](https://img.shields.io/badge/accuracy-79.8%25-yellow) ![availability](https://img.shields.io/badge/availability-96.1%25-yellowgreen) ![replicas](https://img.shields.io/badge/replicas-3-blue) ![python](https://img.shields.io/badge/python-3.13-blue) ![latency](https://img.shields.io/badge/p50-3.02%20s-orange)
+![build](https://img.shields.io/badge/build-passing-brightgreen) ![tests](https://img.shields.io/badge/tests-43%20passed%2C%203%20skipped-brightgreen) ![accuracy](https://img.shields.io/badge/accuracy-79.8%25-yellow) ![availability](https://img.shields.io/badge/availability-96.1%25-yellowgreen) ![replicas](https://img.shields.io/badge/replicas-3-blue) ![python](https://img.shields.io/badge/python-3.13-blue) ![latency](https://img.shields.io/badge/p50-3.00%20s-orange)
 
 **Enterprise-grade left padding.** Leftpad is a staged, replicated text-layout engine built on the npm `left-pad` 1.3.0 algorithm, with a pluggable strategy registry, a three-way replicated memo store, a predictive cache, glyph-paced rendering, an audit journal and built-in telemetry.
 
@@ -123,7 +123,7 @@ Deterministic, paced latency. Same workstation, `SLOP_SLEEP_SCALE=1`, wall clock
 
 | Workload | Runs | How | p50 | max |
 |---|---|---|---|---|
-| `abc 5` | 20 | `benchmarks/reliability.py --latency 20` (seeds 0 to 19, one data folder, `benchmark-latency`) | 3.02 s | 3.59 s |
+| `abc 5` | 20 | `benchmarks/reliability.py --latency 20` (seeds 0 to 19, one data folder, `benchmark-latency`) | 3.00 s | 3.59 s |
 | `x 10000` | 5 | PowerShell `Measure-Command`, seeds 1 to 5 | 5.56 s | 5.72 s |
 
 Pacing is bounded: about 2.5 s of budgeted delay on every request, up to about 6.2 s with the longest glyph stream, fallback and retry, plus write backoff when another process holds a registry file. No request sleeps more than 12 s, at any scale.

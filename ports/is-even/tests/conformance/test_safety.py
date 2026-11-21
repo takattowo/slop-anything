@@ -205,6 +205,11 @@ def test_quota_prunes_only_engine_files(tmp_path):
             f"metrics.md.{pid + 8}.tmp",
             "snapshots/KB-00000099.JSON",
             f"snapshots/Kb-00000098.json.{pid + 4}.tmp",
+            # Zero-padded or zero process ids: os.getpid() never writes those.
+            "events.jsonl.0001.tmp",
+            "audit.jsonl.0.tmp",
+            f"METRICS.md.0{pid}.tmp",
+            "snapshots/kb-00000001.json.0001.tmp",
         )
     ]
     decoys += [_plant(tmp_path / name) for name in ("foreign.tmp", f"events.jsonl.{pid}.tmp", "kb-00000001.json")]

@@ -62,7 +62,7 @@ Every design decision in `ports/is-even` that affects answers, failures, latency
 - Audit: `audit.jsonl`, one lease-outcome event per request, including requests that fail; past 400 events it is compacted to the newest 200, checked after every audit write, so also on failed requests.
 - Snapshots: `snapshots/kb-<seq>.json`, a three-field knowledge base summary written on every answered request; the newest 16 are kept.
 - Telemetry: `METRICS.md`, a Markdown table rewritten (temp file + replace) on every answered request; no code consumes it.
-- Quota: after each answered request the data dir is held within 10,000 files and 50 MB by deleting the oldest snapshots (`snapshots/kb-<seq>.json`) and the engine's own temp files (`events.jsonl.<pid>.tmp`, `audit.jsonl.<pid>.tmp`, `METRICS.md.<pid>.tmp`, `snapshots/kb-<seq>.json.<pid>.tmp`) once they are 60 s old; files are matched by exact name pattern, and no other file is ever deleted. A file another process removes first is skipped.
+- Quota: after each answered request the data dir is held within 10,000 files and 50 MB by deleting the oldest snapshots (`snapshots/kb-<seq>.json`) and the engine's own temp files (`events.jsonl.<pid>.tmp`, `audit.jsonl.<pid>.tmp`, `METRICS.md.<pid>.tmp`, `snapshots/kb-<seq>.json.<pid>.tmp`) once they are 60 s old; files are matched by exact name pattern (`<pid>` as `os.getpid()` writes it: ASCII digits, no leading zero), and no other file is ever deleted. A file another process removes first is skipped.
 - Two processes at once: an append that lands between compaction's size check and its replace is lost, and two appends at the same moment can get the same sequence number. The failover path can then serve a different event.
 
 ## Observability and diagnostics (stderr)

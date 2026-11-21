@@ -76,6 +76,10 @@ DECOYS = (
     # Non-ASCII digits in the temporary-file names.
     "_layout_registry.py.\u0661\u0662.tmp",
     "layout_audit.csv.\u0663.tmp",
+    # Zero-padded or zero process ids: os.getpid() never writes those.
+    "_layout_registry.py.0001.tmp",
+    "layout_audit.csv.0.tmp",
+    "layout_telemetry.zip.012.tmp",
 )
 """Names close to the engine's own; none of them is written by the engine."""
 
@@ -204,7 +208,7 @@ def test_data_folder_stays_within_caps(tmp_path):
     files = [p for p in data.rglob("*") if p.is_file()]
     assert len(files) <= MAX_DATA_FILES
     assert sum(p.stat().st_size for p in files) <= MAX_DATA_BYTES
-    assert not [p for p in data.iterdir() if re.fullmatch(r"_layout_registry\.py\.[0-9]+\.tmp", p.name)]
+    assert not [p for p in data.iterdir() if re.fullmatch(r"_layout_registry\.py\.[1-9][0-9]*\.tmp", p.name)]
     assert (data / "operator-notes.txt").read_text(encoding="utf-8") == "keep"
     assert_decoys_survive(data)
 
@@ -350,6 +354,20 @@ def test_registry_modules_in_the_data_folder_are_never_executed(tmp_path, monkey
             pass
     assert not [p for p in tmp_path.rglob("*") if p.name == "PWNED"]
     assert sum(1 for answer in answers if answer) >= 8
+
+
+def test_registry_refuses_a_snapshot_swapped_after_the_link_check(tmp_path, monkeypatch):
+    from leftpad import registry
+
+    store = registry.LayoutRegistryStore(tmp_path)
+    store.path = Path(os.devnull)  # a device: opens and reads fine, but is not a regular file
+    real_lstat, regular = os.lstat, os.lstat(__file__)
+
+    def lstat(path, *args, **kwargs):  # the check sees a regular file; the open gets the device
+        return regular if os.fspath(path) == os.devnull else real_lstat(path, *args, **kwargs)
+
+    monkeypatch.setattr(os, "lstat", lstat)
+    assert store.load() is None
 
 
 @pytest.mark.parametrize("value", ["=1+2", "+SUM(A1)", "-2+3", "@cmd", "=HYPERLINK(\"x\")"])

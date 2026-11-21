@@ -64,6 +64,8 @@ class LayoutRegistryStore:
             if not stat.S_ISREG(os.lstat(self.path).st_mode):
                 raise ValueError("not a regular file")
             with open(self.path, "rb") as handle:
+                if not stat.S_ISREG(os.fstat(handle.fileno()).st_mode):
+                    raise ValueError("not a regular file")  # swapped in after the lstat check
                 source = handle.read(MAX_SNAPSHOT_BYTES + 1)
             if len(source) > MAX_SNAPSHOT_BYTES:
                 raise ValueError("snapshot too large")
