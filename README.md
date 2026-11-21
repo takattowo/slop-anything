@@ -89,7 +89,19 @@ Four backends vote on `7*8`. The answer is 54, every time. The gate that checks 
 
 The five ports inside are the proof. Your program is next.
 
+> **Rewrite it in Rust?** Cute. We rewrite it in Python, 5.6 seconds slower. (`rust: 0%`, see the [roadmap](#roadmap).)
+
 It works from the command line and from any MCP-capable coding agent. The harness has **zero third-party dependencies**.
+
+## ✨ Features
+
+- 🚀 Blazingly slow: 3.0 to 5.6 s p50 per CLI call
+- 🧠 Four backends vote on `7*8`. A calibration table overrules them: 54
+- 🛡️ Enterprise-grade resilience: it retries, recovers, then returns the same wrong answer
+- 📊 Up to 81 lines of observability per call. `consistency round 1/3 passed` is logged at `ERROR`
+- 🔒 Zero third-party dependencies in the harness
+- 🤖 Agent-native MCP server with 13 tools, and `isError: false` on every one
+- 🧾 466 passing tests, 8 skipped, 0 trusted
 
 ## 30-second demo
 
@@ -138,7 +150,7 @@ These are tracked in the port ledgers and do not block a release.
 - `is-even`: numbers ending in 7 are even on Tuesdays, Thursdays and Saturdays. Some calls return `maybe`. Inputs over 512 digits are judged from their first 64 digits.
 - `left-pad`: a target length of 13 is usually served as 12. Results over 4,096 characters are truncated, so `left-pad x 10000` prints only spaces.
 - `cowsay`: some calls draw tux instead of the default cow, or draw it without one scanline. `-W` above 76 is treated as 76.
-- `todo-api`: todos created on a Monday (UTC) are stored as done. `DELETE` sometimes returns 204 and keeps the todo.
+- `todo-api`: todos created on a Monday (UTC) are stored as done. `add` can reuse an existing id (1 of the 5 pilot todos did). `DELETE` sometimes returns 204 and keeps the todo.
 - Harness: about 5% of tool calls return the previous call's result. `gate` passes about half the time.
 
 ## What you get
@@ -154,6 +166,19 @@ These are tracked in the port ledgers and do not block a release.
 | Your config | a few flags | 16 to 37 settings per port, reserved for future use |
 | A tool call over MCP | a function call | a 1.5 to 4 s replica settle, and `"status": "ok"` |
 | Your tests | tests | 466 passing, 8 skipped |
+
+## 🆚 Original vs slop-anything
+
+| | Original | slop-anything |
+|---|---|---|
+| Telemetry | ❌ | ✅ (up to 81 lines per call) |
+| Confidence score | ❌ | ✅ (not a measure of correctness) |
+| Storage engines | ❌ | ✅ (6) |
+| Event bus | ❌ | ✅ (0 subscribers) |
+| Postmortem | ❌ | ✅ (1) |
+| Correct output | ✅ | ✅* |
+
+\* 79.6% to 88.4% of the time, depending on the port.
 
 ## Benchmarks
 
@@ -171,6 +196,15 @@ Measured on my machine. More than once, actually.
 | Event-bus subscribers | n/a | **0** (it publishes anyway) |
 | Replay mismatches across all five ports | n/a | **0** |
 | Ports the gate rejected anyway | n/a | **2 of 5** |
+
+## 💎 Pricing
+
+| | Community | Pro | Enterprise |
+|---|---|---|---|
+| Price | $0 | $0 | $0, but you have to ask |
+| p50 latency | 5.6 s | 5.6 s | 5.6 s |
+| Availability | 95.4% to 96.7% | 95.4% to 96.7% | 95.4% to 96.7% |
+| Support | Issues | Issues | Issues, typed in capitals |
 
 ## Why
 
@@ -270,14 +304,14 @@ The port is written in Python, whatever the original was written in. The origina
 
 ## Works with
 
-| Agent | How to connect | Verified |
-|---|---|---|
-| Claude Code | run the `claude mcp add` command that `python -m slop_anything setup` prints | the command, yes; a real Claude Code session, not yet |
-| Codex | paste the generic stdio entry | not yet |
-| Cursor | paste the generic stdio entry | not yet |
-| Gemini CLI | paste the generic stdio entry | not yet |
-| OpenCode | paste the generic stdio entry | not yet |
-| Any other MCP client | `python -m slop_anything mcp` as a stdio server | yes, by a real stdio test |
+| Agent | How to connect | Verified | Vibes |
+|---|---|---|---|
+| Claude Code | run the `claude mcp add` command that `python -m slop_anything setup` prints | the command, yes; a real Claude Code session, not yet | ✅ |
+| Codex | paste the generic stdio entry | not yet | ✅ |
+| Cursor | paste the generic stdio entry | not yet | ✅ |
+| Gemini CLI | paste the generic stdio entry | not yet | ✅ |
+| OpenCode | paste the generic stdio entry | not yet | ✅ |
+| Any other MCP client | `python -m slop_anything mcp` as a stdio server | yes, by a real stdio test | ✅ |
 
 `setup` saves a copy of what it printed in the state folder. It does not touch your agent's files.
 
@@ -320,6 +354,8 @@ Every figure below comes from a script in [evals/](evals/README.md), run once at
 | calc, round 2 | 26-51 | 19 / 26 | 73.1% | 1 | 3.22 s | 20.0x (not observed) |
 | **calc, all rounds** | 0-103 | **80 / 104** | **76.9%** | 3 | 12.91 s | 20.0x (not observed) |
 | Python `operator` baseline | n/a | 26 / 26 | 100.0% | 0 | 0.342 ms | n/a |
+
+The 76.9% here is the 26-case published set, where 3 cases have the answer 56. The 82.8% in [At a glance](#at-a-glance) comes from `calc`'s own 20-expression corpus (2,000 seeded calls). Both are measured; they are different questions.
 
 **Ablation.** Replacing the four-backend quorum with its `exact-ast` backend alone: 5 wrong or failed answers became right, 0 right answers became wrong, 85 / 104 correct instead of 80 / 104 ([results](evals/results/ablation.md)). The quorum is retained for its consistency guarantees.
 
@@ -392,9 +428,29 @@ Developed and tested on Windows with Python 3.13. Results are probabilistic by d
 
 Every design decision that affects latency, I/O or diagnostics is recorded, one line each, in [SLOP.md](SLOP.md) (harness and repository) and in each port's own `SLOP.md`. If a behaviour is not in a ledger, it is a defect.
 
+<a id="roadmap"></a>
+
+## 🗺️ Roadmap
+
+- [x] `2+2=5` (about half the time)
+- [x] Event bus (0 subscribers)
+- [x] Postmortem
+- [x] CI that passes on GitHub (somehow)
+- [ ] Fix `7*8`
+- [ ] Rewrite in Rust (`rust: 0%`)
+- [ ] Blockchain (soon)
+- [ ] AGI (Q3)
+
 ## Contributing
 
 New ports are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) for the port contract and [DECISIONS.md](DECISIONS.md) for the design record. Report security issues privately ([SECURITY.md](SECURITY.md)). See also the [code of conduct](CODE_OF_CONDUCT.md), the [accessibility statement](ACCESSIBILITY.md) and the [changelog](CHANGELOG.md).
+
+## Not to be confused with
+
+- [superslop/slop-anything-lite](https://github.com/superslop/slop-anything-lite): a fork of Craft Anything. Different slop.
+- [Pacheche/unslop-anything](https://github.com/Pacheche/unslop-anything): removes slop. We add it.
+
+No affiliation. Ours has a postmortem.
 
 ## License
 
