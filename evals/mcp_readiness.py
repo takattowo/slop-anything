@@ -120,7 +120,10 @@ def main() -> int:
                         counts["other_request"] += 1
                         log.append(f"{i}: body names another path")
             finally:
-                proc.stdin.close()
+                try:
+                    proc.stdin.close()
+                except OSError:
+                    pass
                 try:
                     proc.wait(timeout=15)
                 except subprocess.TimeoutExpired:
