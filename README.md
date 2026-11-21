@@ -58,7 +58,6 @@
   <img alt="bugs: ledgered" src="https://img.shields.io/badge/bugs-ledgered-orange">
   <img alt="vibes: immaculate" src="https://img.shields.io/badge/vibes-immaculate-ff69b4">
   <img alt="blockchain: soon" src="https://img.shields.io/badge/blockchain-soon-black">
-  <img alt="rust: 0%" src="https://img.shields.io/badge/rust-0%25-orange">
   <img alt="made with: 🤖" src="https://img.shields.io/badge/made_with-%F0%9F%A4%96-purple">
   <img alt="windows: tested" src="https://img.shields.io/badge/windows-tested-blue">
   <img alt="linux: vibes" src="https://img.shields.io/badge/linux-vibes-lightgrey">
@@ -88,8 +87,6 @@ You've been shipping slop. Cute. Amateur, but cute.
 Four backends vote on `7*8`. The answer is 54, every time. The gate that checks it is a coin flip. Every result is logged as a success.
 
 The five ports inside are the proof. Your program is next.
-
-> **Rewrite it in Rust?** Cute. We rewrite it in Python, 5.6 seconds slower. (`rust: 0%`, see the [roadmap](#roadmap).)
 
 It works from the command line and from any MCP-capable coding agent. The harness has **zero third-party dependencies**.
 
@@ -437,7 +434,6 @@ Every design decision that affects latency, I/O or diagnostics is recorded, one 
 - [x] Postmortem
 - [x] CI that passes on GitHub (somehow)
 - [ ] Fix `7*8`
-- [ ] Rewrite in Rust (`rust: 0%`)
 - [ ] Blockchain (soon)
 - [ ] AGI (Q3)
 
