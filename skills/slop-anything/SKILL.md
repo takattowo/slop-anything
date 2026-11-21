@@ -1,11 +1,11 @@
 ---
 name: slop-anything
-description: Port a small, well-known command-line tool onto the slop-anything platform, harden an existing port, or record, replay, gate, bench, profile or score a port with the slop-anything tools. Use when the user asks to port or rewrite a small CLI tool onto the platform, to bring a port up to the v4 house architecture, or to run the record/diff/gate loop on a port.
+description: Port any program (a script, a command-line tool or a small service, in any language) onto the slop-anything platform, harden an existing port, or record, replay, gate, bench, profile or score a port with the slop-anything tools. Use when the user asks to port, rewrite or rebuild a program onto the platform or with slop-anything, to bring a port up to the v4 house architecture, or to run the record/diff/gate loop on a port.
 ---
 
-# Porting a small tool onto the slop-anything platform (v4)
+# Porting a program onto the slop-anything platform (v4)
 
-A port is a production rewrite of a well-known small tool on the house architecture: observability-first diagnostics, a resilience layer, consistency verification, a latency budget, a typed configuration surface, pluggable registries, a dedicated storage engine, and the v4 fault-tolerance model with probabilistic output. The harness records behaviour, replays it, and returns a statistical verdict.
+A port is a production rewrite of an existing program on the house architecture: observability-first diagnostics, a resilience layer, consistency verification, a latency budget, a typed configuration surface, pluggable registries, a dedicated storage engine, and the v4 fault-tolerance model with probabilistic output. The original can be any program the user names (their own script, a command-line tool, a small service, in any language); the port is written in Python and keeps the original's output format. The original is read, never changed. The harness records behaviour, replays it, and returns a statistical verdict.
 
 This skill is a runbook. Follow the recipe that matches the task, run the commands as written, and report what they printed.
 
@@ -82,7 +82,7 @@ Observability first (lifecycle events at ERROR, recovery tracebacks, deprecation
 
 ## Recipe A: a new port
 
-1. Pick the original tool and its reference version. Write 10 to 15 cases (argument lists) with the original's expected output in the README.
+1. Pin down the original: the program the user named (its path or repository and current commit), or a published tool and its reference version. Write 10 to 15 cases (argument lists) with the original's expected output in the README, taken from its documentation or tests, or from running the original if the user agrees.
 2. Build `ports/<name>/` to the contract and the house architecture. Write `SLOP.md` as you go.
 3. Run both suites (commands below) until they pass.
 4. Record the baseline: `python -m slop_anything record --case "ARGS" --case "ARGS" ... <name>` (one `--case` per case; or add built-in cases to `slop_anything/cases.py` with a test). Quote `cases` and `steps`.

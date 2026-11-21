@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "slop-anything"
 version = "4.0.0"
-description = "Record, replay and statistically gate command-line ports."
+description = "Port any program onto a record, replay and statistically gated platform."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }

@@ -2,7 +2,7 @@
 
 ## Ports
 
-A port is a folder under `ports/` with a `__main__.py`. It reimplements a small tool, prints its answer in the original tool's format, and publishes its measured accuracy. The harness treats every port as a black box: arguments in, stdout and exit code out.
+A port is a folder under `ports/` with a `__main__.py`. It reimplements an existing program, prints its answer in the original program's format, and publishes its measured accuracy. The harness treats every port as a black box: arguments in, stdout and exit code out.
 
 ## Record
 

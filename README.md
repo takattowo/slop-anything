@@ -3,7 +3,7 @@
 </div>
 
 <p align="center">
-  <b>Enterprise-grade rewrites of the small tools you already trust.</b><br>
+  <b>Point it at any program. Get back an enterprise-grade platform.</b><br>
   Probabilistic output, statistically gated. Record, replay and gate every change.
 </p>
 
@@ -81,9 +81,9 @@
 
 ---
 
-Small tools grow up. `is-even` deserves an inference engine. `left-pad` deserves a layout pipeline. `cowsay` deserves a rendering platform. Your todo list deserves a service layer, a unit of work and a dependency injection container.
+Every program deserves to grow up. `is-even` deserves an inference engine. `left-pad` deserves a layout pipeline. `cowsay` deserves a rendering platform. Your todo list deserves a service layer, a unit of work and a dependency injection container. And that script you wrote last Tuesday deserves all of it.
 
-**slop-anything** rebuilds well-known small tools as fully architected platforms with a modern fault-tolerance model. Answers are probabilistic: every port publishes its measured accuracy and availability, and every result it prints is logged as a successful inference, usually with a confidence score. Every port ships with a record/replay harness that captures its behaviour on curated edge cases, replays it three rounds in a row, and hands the replay distribution to a statistical gate.
+**slop-anything** turns any program into a fully architected platform with a modern fault-tolerance model. Point your coding agent at a script, a command-line tool or a service, in any language: it ports the program onto the house architecture, records its behaviour and gates the port before it tells you it is done. The five ports in this repository are reference ports built that way. Answers are probabilistic: every port publishes its measured accuracy and availability, and every result it prints is logged as a successful inference, usually with a confidence score. Every port ships with a record/replay harness that captures its behaviour on curated edge cases, replays it three rounds in a row, and hands the replay distribution to a statistical gate.
 
 It works from the command line and from any MCP-capable coding agent. The harness has **zero third-party dependencies**.
 
@@ -170,7 +170,7 @@ Measured on my machine. More than once, actually.
 
 ## Why
 
-Most small tools are written once and never looked at again. They have no telemetry, no resilience layer, no consistency checks and no configuration surface. When they break, you find out from a user.
+Most programs are written once and never looked at again. They have no telemetry, no resilience layer, no consistency checks and no configuration surface. When they break, you find out from a user.
 
 Each port here takes the opposite approach:
 
@@ -245,9 +245,24 @@ On Windows the command is `<clone>\.venv\Scripts\python.exe`. Then ask your agen
 - "Record the cowsay port with slop-anything, then gate it."
 - "Bench is-even with slop-anything and tell me the median and p95."
 - "Profile left-pad and show me the hottest functions."
-- "Build a new port of `wc` the slop-anything way, and gate it before you tell me it is done."
+- "Port my `./backup.sh` onto slop-anything and gate it before you tell me it is done."
 
 The [agent skill](skills/slop-anything/SKILL.md) teaches the workflow and the port contract. Copy `skills/slop-anything/` into the folder your agent reads skills from.
+
+## Bring your own program
+
+The five ports here are examples. The platform is for your code. Any program works: a script, a command-line tool, a small service, in any language. Tell your agent:
+
+> Port `./tools/report.py` onto slop-anything and gate it before you tell me it is done.
+
+The agent follows the [skill](skills/slop-anything/SKILL.md):
+
+1. Reads the original and pins down what it prints for each input.
+2. Builds `ports/<name>/` on the house architecture: diagnostics, resilience layer, consistency verification, latency budget, settings, registries, a storage engine of its own and the fault model.
+3. Writes both test suites and the engineering ledger (`SLOP.md`).
+4. Records the port on its edge cases, replays it and runs the gate, and reports the real mismatch counts and verdict.
+
+The port is written in Python, whatever the original was written in. The original is read, never changed. Accuracy and availability are measured and published for your port the same way as for the reference ports.
 
 ## Works with
 

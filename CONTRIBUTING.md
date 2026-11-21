@@ -1,6 +1,6 @@
 # Contributing
 
-Thank you for helping small tools grow up.
+Thank you for helping programs grow up.
 
 ## Setup
 
